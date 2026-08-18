@@ -1,0 +1,4 @@
+entrypoint,method,handler,auth_required,roles,params,reachable_sinks,sink_type,trust_boundary,candidate_wstg,static_confidence,priority,dynamic_result,evidence
+"/api/v1/invoices/{id}",GET,InvoiceController.show,false,"user","id","db.query(invoices)",sql,tenant->tenant,"ATHZ-04;INPV-05",extracted,1,,
+"/import",POST,ImportController.fromUrl,true,"user","url","http.get(url)",url-fetch,app->internal,"INPV-19",extracted,1,,
+"/admin/users",GET,AdminController.list,unknown,"admin?","",AdminController.list,authz-missing,user->admin,"ATHZ-02;CONF-05",inferred,2,,

@@ -1,0 +1,30 @@
+This repository redistributes and adapts content from the OWASP Web Security
+Testing Guide (WSTG), version 4.2.
+
+Original work:
+  Title:   OWASP Web Security Testing Guide v4.2
+  Author:  The OWASP Foundation and WSTG contributors
+  Source:  https://owasp.org/www-project-web-security-testing-guide/
+  Repo:    https://github.com/OWASP/wstg
+  License: Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+           https://creativecommons.org/licenses/by-sa/4.0/
+
+Changes made to the original in this repository:
+  - Extracted the 97 v4.2 test cases from the published PDF into plain Markdown.
+  - Removed PDF artifacts (page headers/numbers, form feeds) and normalized
+    typographic ligatures (e.g. "fi", "fl").
+  - Reorganized the text into one file per category, and split the Input
+    Validation category into six files by injection class.
+  - Added per-file tables of contents.
+  - Derived the coverage checklist (resources/wstg-checklist.csv) and the report
+    template (resources/report-template.md) from WSTG test names and the WSTG
+    Reporting chapter.
+
+Because the WSTG is licensed under CC BY-SA 4.0, the adapted materials listed in
+LICENSE-DOCS remain under CC BY-SA 4.0. Attribution to OWASP is required and is
+provided here and in the README. Per-test canonical references use versioned
+links of the form:
+  https://owasp.org/www-project-web-security-testing-guide/v42/
+
+"OWASP" is a registered trademark of the OWASP Foundation. This project is not
+affiliated with or endorsed by the OWASP Foundation.

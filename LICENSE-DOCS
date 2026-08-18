@@ -1,0 +1,25 @@
+CC BY-SA 4.0 — documentation and WSTG-derived content
+======================================================
+
+The following paths in this repository are adaptations of the OWASP Web Security
+Testing Guide v4.2 and are licensed under the Creative Commons
+Attribution-ShareAlike 4.0 International License (CC BY-SA 4.0):
+
+  references/**            (all WSTG test-case text)
+  resources/wstg-checklist.csv
+  resources/report-template.md
+
+You are free to share and adapt this material, provided you (a) give appropriate
+credit to the OWASP Foundation (see NOTICE), (b) indicate if changes were made,
+and (c) license your adaptations under CC BY-SA 4.0 or a compatible license
+(ShareAlike).
+
+Full license text: https://creativecommons.org/licenses/by-sa/4.0/legalcode
+Human-readable summary: https://creativecommons.org/licenses/by-sa/4.0/
+
+Attribution and the list of changes are recorded in the NOTICE file.
+
+NOTE: When creating the repository on GitHub, paste the full CC BY-SA 4.0 legal
+text into this file (GitHub's "Add file -> Create new file -> LICENSE" template
+picker does not include CC BY-SA; copy it from the legalcode URL above) so the
+license is complete and self-contained.

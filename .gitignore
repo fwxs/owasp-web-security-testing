@@ -1,0 +1,26 @@
+# Working copies of the checklist populated per engagement (keep the template, not the fills)
+resources/wstg-checklist.*.csv
+*-engagement.csv
+working-*.csv
+
+# Graph tool artifacts if you run the white-box workflow inside the repo
+graphify-out/
+.codebase-memory/
+*.db
+*.db.zst
+
+# Build/release artifacts
+*.zip
+dist/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
